@@ -44,9 +44,11 @@ for fasta in sys.argv[1:]:
 	cum_seq = Seq('').join(seqs)
 	cum_seqs.append(cum_seq)
 	n_count = cum_seq.count('N') + cum_seq.count('n')
-	print('Cumulative length: ' + str(len(cum_seq)) + ', GC content: ' + ('%.3f' % GC(cum_seq)) + ', proportion Ns: ' + str(100*n_count/len(cum_seq)))
+	if len(seqs) > 1:
+		print('Cumulative length: ' + str(len(cum_seq)) + ', GC content: ' + ('%.3f' % GC(cum_seq)) + ', proportion Ns: ' + str(100*n_count/len(cum_seq)))
 	print('')
 
 overall_seq = Seq('').join(cum_seqs)
 n_count = overall_seq.count('N') + overall_seq.count('n')
-print('Overall length: ' + str(len(overall_seq)) + ', GC content: ' + ('%.3f' % GC(overall_seq)) + ', proportion Ns: ' + str(100*n_count/len(overall_seq)))
+if len(cum_seqs) > 1:
+	print('Overall length: ' + str(len(overall_seq)) + ', GC content: ' + ('%.3f' % GC(overall_seq)) + ', proportion Ns: ' + str(100*n_count/len(overall_seq)))
