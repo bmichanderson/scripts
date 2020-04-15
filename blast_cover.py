@@ -83,6 +83,14 @@ for sbjct in hit_dict:
 		else:
 			keep_hits.append(hit)
 
+	# now remove overlap
+	for hit in keep_hits[1:]:
+		for other_hit in keep_hits:
+			if all([hit[0] < other_hit[0], hit[1] > other_hit[0], hit[1] < other_hit[1]]):		# if the hit overlaps the start
+				hit[1] = other_hit[0] - 1							# adjust the hit to avoid overlap
+			elif all([hit[0] < other_hit[1], hit[0] > other_hit[0], hit[1] > other_hit[1]]):	# if the hit overlaps the end
+				hit[0] = other_hit[1] + 1							# adjust the hit to avoid overlap
+
 	keep_dict[sbjct] = keep_hits
 
 
