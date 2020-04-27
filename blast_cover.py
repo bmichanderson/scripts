@@ -24,6 +24,8 @@ if (len(sys.argv[1:])) == 0:
 # read in the plot.tab file line by line and capture the hit information
 hit_dict = {}
 sbjct_len_dict = {}
+cover_dict = {}
+sbjct_list = []
 query_list = []
 with open(sys.argv[1], 'r') as input:
 	for lineno, line in enumerate(input, start=1):
@@ -58,63 +60,49 @@ with open(sys.argv[1], 'r') as input:
 			hit_dict[sbjct].append(sorted((sbjct_start, sbjct_end)))
 
 
-		# capture the subject lengths and query presence
+		# capture the subject lengths and sbjct/query presence
 		if sbjct not in sbjct_len_dict:
 			sbjct_len_dict[sbjct] = sbjct_len
+
+		if sbjct not in sbjct_list:
+			sbjct_list.append(sbjct)
 
 		if query not in query_list:
 			query_list.append(query)
 
 
-
-# Now process the capture data to avoid overlapping hits
-keep_dict = {}
+# First convert the hits into non-overlapping ranges, then calculate the length of the ranges
 for sbjct in hit_dict:
-	keep_hits = []
-	hit_dict[sbjct].sort(key=lambda x: x[1]-x[0], reverse=True)
-	keep_hits.append(hit_dict[sbjct][0])
-	for hit in hit_dict[sbjct][1:]:
-		skip = False
-		for keeper in keep_hits:
-			if all([hit[0] > keeper[0], hit[1] < keeper[1]]):	# if the hit is within a previous hit
-				skip = True
-		if skip:
-			continue
+	hit_ranges = []
+	for begin, end in sorted(hit_dict[sbjct]):		# from https://stackoverflow.com/questions/15273693/union-of-multiple-ranges
+		if hit_ranges and hit_ranges[-1][1] >= begin - 1:
+			hit_ranges[-1][1] = max(hit_ranges[-1][1], end)
 		else:
-			keep_hits.append(hit)
+			hit_ranges.append([begin, end])
 
-	# now remove overlap
-	for hit in keep_hits[1:]:
-		for other_hit in keep_hits:
-			if all([hit[0] < other_hit[0], hit[1] > other_hit[0], hit[1] < other_hit[1]]):		# if the hit overlaps the start
-				hit[1] = other_hit[0] - 1							# adjust the hit to avoid overlap
-			elif all([hit[0] < other_hit[1], hit[0] > other_hit[0], hit[1] > other_hit[1]]):	# if the hit overlaps the end
-				hit[0] = other_hit[1] + 1							# adjust the hit to avoid overlap
+	total_length = 0
+	for begin, end in hit_ranges:
+		total_length = total_length + len(range(begin, end + 1))
 
-	keep_dict[sbjct] = keep_hits
-
-
-# Now calculate the coverage of the remaining hits, one subject at a time
-tally = 0
-cover_dict = {}
-for sbjct in keep_dict:
-	hit_cover = 0
-	for hit in keep_dict[sbjct]:
-		hit_cover = hit_cover + (hit[1] - hit[0])
-		tally = tally + (hit[1] - hit[0])
-
-	cover_dict[sbjct] = hit_cover
+	if sbjct not in cover_dict:
+		cover_dict[sbjct] = total_length
+	else:
+		print('Duplicate subject?')
 
 
 # report the findings
+cover_len = 0
 total_len = 0
-for key, value in sbjct_len_dict.iteritems():
-	total_len = total_len + value
+for sbjct in cover_dict:
+	cover_len = cover_len + cover_dict[sbjct]
+for sbjct in sbjct_len_dict:
+	total_len = total_len + sbjct_len_dict[sbjct]
 
 print('Summary for BLAST results with ' + str(len(sbjct_len_dict)) + ' subjects and ' + str(len(query_list)) + ' queries.')
 print('')
-print('Hits covered:')
-for key, value in sorted(cover_dict.iteritems()):
-	print(key + ': ' + str(value) + ' of ' + str(sbjct_len_dict[key]))
+print('Hit coveraged:')
+for sbjct in sorted(sbjct_list):
+	if sbjct in cover_dict:
+		print(sbjct + ': ' + str(cover_dict[sbjct]) + ' of ' + str(sbjct_len_dict[sbjct]))
 print('')
-print('Total covered: ' + str(tally) + ' of ' + str(total_len))
+print('Total covered: ' + str(cover_len) + ' of ' + str(total_len))
