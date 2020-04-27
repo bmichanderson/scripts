@@ -3,7 +3,7 @@
 #################
 # Script: seq_stats.py
 # Author: B. Anderson
-# Date: 15 Apr 2020
+# Date: 27 Apr 2020
 # Description: output basic sequence statistics for a set of input fasta files
 #################
 
@@ -38,17 +38,17 @@ for fasta in sys.argv[1:]:
 		seqs.append(entry.seq)
 		print('ID: ' + entry.id)
 		n_count = entry.seq.count('N') + entry.seq.count('n')
-		print('Length: ' + str(len(entry.seq)) + ', GC content: ' + ('%.3f' % GC(entry.seq)) + ', proportion Ns: ' + str(100*n_count/len(entry.seq)))
+		print('Length: ' + str(len(entry.seq)) + ', GC content: ' + ('%.3f' % GC(entry.seq)) + ', proportion Ns: ' + ('%.2f' % (float(100*n_count)/len(entry.seq))))
 
 
 	cum_seq = Seq('').join(seqs)
 	cum_seqs.append(cum_seq)
 	n_count = cum_seq.count('N') + cum_seq.count('n')
 	if len(seqs) > 1:
-		print('Cumulative length: ' + str(len(cum_seq)) + ', GC content: ' + ('%.3f' % GC(cum_seq)) + ', proportion Ns: ' + str(100*n_count/len(cum_seq)))
+		print('Cumulative length: ' + str(len(cum_seq)) + ', GC content: ' + ('%.3f' % GC(cum_seq)) + ', proportion Ns: ' + ('%.2f' % (float(100*n_count)/len(cum_seq))))
 	print('')
 
 overall_seq = Seq('').join(cum_seqs)
 n_count = overall_seq.count('N') + overall_seq.count('n')
 if len(cum_seqs) > 1:
-	print('Overall length: ' + str(len(overall_seq)) + ', GC content: ' + ('%.3f' % GC(overall_seq)) + ', proportion Ns: ' + str(100*n_count/len(overall_seq)))
+	print('Overall length: ' + str(len(overall_seq)) + ', GC content: ' + ('%.3f' % GC(overall_seq)) + ', proportion Ns: ' + ('%.2f' % (float(100*n_count)/len(overall_seq))))
