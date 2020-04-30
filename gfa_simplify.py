@@ -2,7 +2,7 @@
 
 #####################
 # Author: B. Anderson
-# Date: 29 April 2020
+# Date: 29-30 April 2020
 # Description: attempt to simplify a complicated gfa graph structure from Bandage and output contigs
 #####################
 
@@ -223,20 +223,26 @@ print('')
 
 # Define a function for simplifying overlapping series
 def remove_overlap(paths_list):
+	paths_list = sorted(paths_list, key=len, reverse=True)		# sort the list by length
+	new_paths = [paths_list[0]]	# automatically keep the first (longest) path
 	num_series = [[step[0] for step in paths_list[0]]]
-	new_paths = [paths_list[0]]
-	for path in paths_list[1:]:
-		new_1 = []
+	singletons = []
+	for path in paths_list[1:]:	# iterate through the remaining paths
+		if len(path) == 1:
+			singletons.append(path)
+			continue
+
+		new_1 = []	# initialize potential sub-paths created by removing matching sequences
 		new_2 = []
 		match_length = 0
-		nums = [step[0] for step in path]
-		for series in num_series:
+		nums = [step[0] for step in path]	# turn the path into a series of numbers
+		for series in num_series:		# iterate over the existing processed paths to look for overlaps
 			matches = []
 			i = 0
 			j = 0
 			j_start = 0
 			j_end = 0
-			for num in nums:
+			for num in nums:		# iterate through the path until finding a matching number in the current series
 				if num in series:
 					i = series.index(num)
 					j_start = j
@@ -252,8 +258,9 @@ def remove_overlap(paths_list):
 				else:
 					j_end = j
 					break
-			if all([len(matches) > match_length, len(matches) > 5]):
-				print(matches)
+
+			if all([len(matches) > match_length, len(matches) > 5]):		# check that the match is longer than 5 links and than the longest match
+#				print(matches)
 				match_length = len(matches)
 				new_1 = path[0:j_start]
 				new_2 = path[j_end:]
@@ -261,15 +268,31 @@ def remove_overlap(paths_list):
 #				print(new_2)
 #				print('')
 
-		if any([len(new_1) > 1, len(new_2) > 1]):
-			if len(new_1) > 1:
-				new_paths.append(new_1)
-				num_series.append([step[0] for step in new_1])
-			if len(new_2) > 1:
-				new_paths.append(new_2)
-				num_series.append([step[0] for step in new_2])
+		if any([len(new_1) > 0, len(new_2) > 0]):
+			if len(new_1) > 0:
+				if len(new_1) == 1:
+					singletons.append(new_1)
+				else:
+					new_paths.append(new_1)
+					num_series.append([step[0] for step in new_1])
+			if len(new_2) > 0:
+				if len(new_2) == 1:
+					singletons.append(new_2)
+				else:
+					new_paths.append(new_2)
+					num_series.append([step[0] for step in new_2])
+		elif len(path) == match_length:
+			continue
 		else:
 			new_paths.append(path)
+			num_series.append([step[0] for step in path])
+
+	### FIND A WAY TO REMOVE DUPLICATE PATHS
+
+
+	singletons = [list(i) for i in set(tuple(x[0]) for x in singletons)]		# remove duplicates
+	for singleton in singletons:
+		new_paths.append([singleton])
 
 	return new_paths
 
@@ -277,7 +300,7 @@ def remove_overlap(paths_list):
 # Further simplifying to remove sections of paths that are fully contained in longer paths (iteratively)
 new_paths = keep_paths
 i = 0
-while i < 3:
+while i < 1:
 	new_paths = remove_overlap(new_paths)
 	print(len(new_paths))
 	i = i + 1
