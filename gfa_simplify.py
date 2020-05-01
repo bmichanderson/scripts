@@ -2,13 +2,13 @@
 
 #####################
 # Author: B. Anderson
-# Date: 29-30 April 2020
+# Date: 29–30 April, 1 May 2020
 # Description: attempt to simplify a complicated gfa graph structure from Bandage and output contigs
 #####################
 
 import sys
-#from Bio import SeqIO
 from Bio.Seq import Seq
+from collections import Counter
 
 def help():
 	print('Simplify complicated gfa graph structures from Bandage and output contigs')
@@ -134,7 +134,7 @@ def recursive_paths(seq_num, seq_dir, link_list, path_list, visited_list):
 circular = []
 linear = []
 filt_paths = []
-for seq_num, seq_str in seq_list[:20]:		# the seq_list is automatically sorted by length/line in the gfa file
+for seq_num, seq_str in seq_list:		# the seq_list is automatically sorted by length/line in the gfa file
 	links = find_links(seq_num, link_list)
 
 	print(str(seq_num) + ':')
@@ -165,7 +165,7 @@ for seq_num, seq_str in seq_list[:20]:		# the seq_list is automatically sorted b
 		# recursively determine possible paths, stopping when hitting a contig visited before
 		recursive_paths(link[2], link[3], link_list, path_list, visited_list)
 
-		# evaluate the paths captured
+		# evaluate the paths captured to remove those with all contigs hit in previous paths
 		keep_paths = []
 		touched = []
 		dropped = 0
@@ -190,7 +190,7 @@ for seq_num, seq_str in seq_list[:20]:		# the seq_list is automatically sorted b
 			filt_paths.append(path)
 
 
-# Now find longest paths and non-redundanct representation across all paths from every starting point
+# Now find longest paths and non-redundanct representation across *all* paths from every starting point
 keep_paths = []
 touched = []
 dropped = 0
@@ -221,54 +221,83 @@ print(circular)
 print('')
 
 
-# Define a function for simplifying overlapping series
+
+
+
+
+# Now we need to reduce path overlap to try to get the smallest representation of the mess of connections
+
+# Define a function for finding the longest hit (indices of first argument) between two lists of numbers
+def longest_match(series1, series2):
+	longest_matches = []
+	for index, num in enumerate(series1):		# iterate through the series to find matching numbers in the other series
+		match_list = []
+		starts = [j for j, x in enumerate(series2) if x == num]
+		if len(starts) > 0:
+			for start in starts:		# see how long we can match between the two series
+				matches = []
+				i = index
+				j = start
+				while i < len(series1) and j < len(series2):
+					if series1[i] == series2[j]:
+						matches.append(i)
+						i = i + 1
+						j = j + 1
+					else:
+						break
+				match_list.append(matches)
+		else:
+			continue
+		if len(match_list) > 0:
+			longest_match = sorted(match_list, key=len, reverse=True)[0]
+			longest_matches.append(longest_match)
+		else:
+			continue
+	if len(longest_matches) > 0:
+		return sorted(longest_matches, key=len, reverse=True)[0]
+	else:
+		return []
+
+# Define a function for simplifying overlapping paths (depends on longest_match)
 def remove_overlap(paths_list):
 	paths_list = sorted(paths_list, key=len, reverse=True)		# sort the list by length
 	new_paths = [paths_list[0]]	# automatically keep the first (longest) path
-	num_series = [[step[0] for step in paths_list[0]]]
+	num_series = [[step[0] for step in paths_list[0]]]		# turn the first path into a series of numbers (no orientation)
 	singletons = []
-	for path in paths_list[1:]:	# iterate through the remaining paths
+	for path in paths_list[1:]:	# iterate through the remaining paths, comparing them to the growing set of number series
 		if len(path) == 1:
 			singletons.append(path)
 			continue
-
 		new_1 = []	# initialize potential sub-paths created by removing matching sequences
 		new_2 = []
-		match_length = 0
+		best_match_length = 1			# set this to determine minimum match retained
 		nums = [step[0] for step in path]	# turn the path into a series of numbers
+		nums_rev = nums[::-1]			# reverse the list to check for reverse hits
 		for series in num_series:		# iterate over the existing processed paths to look for overlaps
-			matches = []
-			i = 0
-			j = 0
-			j_start = 0
-			j_end = 0
-			for num in nums:		# iterate through the path until finding a matching number in the current series
-				if num in series:
-					i = series.index(num)
-					j_start = j
-					break
-				else:
-					j = j + 1
+			match_length = 0
+			match = longest_match(nums, series)
+			match_rev = longest_match(nums_rev, series)
 
-			while i < len(series) and j < len(nums):
-				if series[i] == nums[j]:
-					matches.append(j)
-					i = i + 1
-					j = j + 1
-				else:
-					j_end = j
-					break
+			if len(match) >= len(match_rev):
+				match_length = len(match)
+				chosen_match = match
+			else:
+				match_length = len(match_rev)
+				corr_match_rev = []			# we need to switch the indices back to the original path indices (but now forward too)
+				for index in match_rev:
+					orig_index = len(nums_rev) - index - 1
+					corr_match_rev.append(orig_index)
+				corr_match_rev.reverse()
+				chosen_match = corr_match_rev
 
-			if all([len(matches) > match_length, len(matches) > 5]):		# check that the match is longer than 5 links and than the longest match
-#				print(matches)
-				match_length = len(matches)
-				new_1 = path[0:j_start]
-				new_2 = path[j_end:]
-#				print(new_1)
-#				print(new_2)
-#				print('')
+			if match_length > best_match_length:
+				best_match_length = match_length
+				new_1 = path[0:chosen_match[0]]
+				new_2 = path[chosen_match[-1] + 1:]
+			else:
+				continue
 
-		if any([len(new_1) > 0, len(new_2) > 0]):
+		if any([len(new_1) > 0, len(new_2) > 0]):		# was split into at least one new path (the best will have assigned new_1 and new_2)
 			if len(new_1) > 0:
 				if len(new_1) == 1:
 					singletons.append(new_1)
@@ -281,34 +310,287 @@ def remove_overlap(paths_list):
 				else:
 					new_paths.append(new_2)
 					num_series.append([step[0] for step in new_2])
-		elif len(path) == match_length:
+		elif len(path) == best_match_length:		# full length match
 			continue
-		else:
+		else:				# no sufficiently long hits
 			new_paths.append(path)
 			num_series.append([step[0] for step in path])
 
-	### FIND A WAY TO REMOVE DUPLICATE PATHS
 
-
+	# Deal with singletons (duplicates and those present in existing paths)
 	singletons = [list(i) for i in set(tuple(x[0]) for x in singletons)]		# remove duplicates
+
+	remove_indices = []
+	for index, singleton in enumerate(singletons):
+		single_num = singleton[0]
+		found = False
+		for series in num_series:
+			if single_num in series:		# if hit, regardless of orientation
+				found = True
+				break
+		if found:
+			remove_indices.append(index)
+	remove_indices = list(set(remove_indices))		# remove duplicate indices
+	for index in sorted(remove_indices, reverse=True):
+		del singletons[index]
+	print('Deleted ' + str(len(remove_indices)) + ' singletons')
+
 	for singleton in singletons:
 		new_paths.append([singleton])
 
+	# Deal with duplicate paths of any length
+	remove_indices = []
+	for path in new_paths:
+		hits = []
+		for index, other_path in enumerate(new_paths):
+			if path == other_path:
+				hits.append(index)
+		if len(hits) > 1:
+			for hit in hits[1:]:
+				remove_indices.append(hit)
+	remove_indices = list(set(remove_indices))		# remove duplicate indices
+	for index in sorted(remove_indices, reverse=True):
+		del new_paths[index]
+	print('Deleted ' + str(len(remove_indices)) + ' exact duplicate paths')
+
+
+	# Finish and return the new paths without overlaps
 	return new_paths
 
 
-# Further simplifying to remove sections of paths that are fully contained in longer paths (iteratively)
-new_paths = keep_paths
+
+# Simplifying to remove sections of paths that are contained in longer paths (iteratively)
+new_paths = keep_paths[:]
 i = 0
-while i < 1:
+while i < 10:
 	new_paths = remove_overlap(new_paths)
 	print(len(new_paths))
 	i = i + 1
 
+print('')
 
-# Now create output paths and contigs from the filtered paths
-final_paths = new_paths
 
+# Further simplifying by merging any paths that end with the start of another path
+new_paths = sorted(new_paths, key=len, reverse=True)[:]
+merge_count = 0
+hit_end = False
+iteration_counter = 1
+while not hit_end:
+	#print('Starting loop ' + str(iteration_counter))
+	for index, path in enumerate(new_paths):
+		hit_merge = False
+		to_merge = ()
+
+		#print('Index: ' + str(index) + ', Length: ' + str(len(new_paths)))
+		if index >= len(new_paths) - 1:
+			hit_end = True
+
+		if len(path) == 1:
+			continue
+
+		for other_index, other_path in enumerate(new_paths):
+			if len(other_path) == 1:
+				continue
+			if index == other_index:		# the same path
+				continue
+			if path[-1] == other_path[0]:		# exact same end and start point
+				#print('Found a merger!')
+				to_merge = (index, other_index)
+				hit_merge = True
+				break
+			else:
+				continue
+
+		if hit_merge:
+			break
+		else:
+			continue
+
+	if len(to_merge) > 0:
+		new_paths[to_merge[0]] = new_paths[to_merge[0]][:-1] + new_paths[to_merge[1]]
+		del new_paths[to_merge[1]]
+		merge_count = merge_count + 1
+
+	iteration_counter = iteration_counter + 1
+
+print('Merged ' + str(merge_count) + ' pairs of paths')
+print('')
+
+
+# Additionally simplify by removing start or end path links that are already present in other paths (trimming shorter contigs)
+new_paths = sorted(new_paths, key=len, reverse=True)[:]
+trim_start_count = 0
+trim_end_count = 0
+hit_end = False
+while not hit_end:
+	for index, path in enumerate(new_paths):
+		tstart = False
+		tend = False
+		trim_start = 0
+		trim_end = 0
+		if index == len(new_paths) - 1:
+			hit_end = True
+		if len(path) == 1:
+			continue
+
+		nums = [step[0] for step in path]	# turn the path into a series of numbers
+
+		for other_index, other_path in enumerate(new_paths):
+			if len(other_path) == 1:
+				continue
+			if index == other_index:		# the same path
+				continue
+
+			other_nums = [step[0] for step in other_path]	# turn the path into a series of numbers
+
+			if all([not tstart, nums[0] in other_nums]):		# start present inside another path
+				#print('Start hit!')
+				tstart = True
+				trim_start = index
+			if all([not tend, nums[-1] in other_nums]):		# end present in another path
+				#print('End hit!')
+				tend = True
+				trim_end = index
+
+			if all([tstart, tend]):
+				break
+			else:
+				continue
+		if any([tstart, tend]):
+			break
+		else:
+			continue
+
+	if tstart:
+		if len(new_paths[trim_start]) > 1:
+			new_paths[trim_start] = new_paths[trim_start][1:]
+			trim_start_count = trim_start_count + 1
+		else:
+			del new_paths[trim_start]
+	if tend:
+		if len(new_paths[trim_end]) > 1:
+			new_paths[trim_end] = new_paths[trim_end][:-1]
+			trim_end_count = trim_end_count + 1
+		else:
+			del new_path[trim_end]
+
+
+print('Trimmed ' + str(trim_start_count) + ' starts and ' + str(trim_end_count) + ' ends from paths')
+print('')
+
+
+
+# Delete any exact duplicates possibly created (singletons), and any singletons created that are now present in paths
+remove_indices = []
+is_singleton = False
+for path in new_paths:
+	is_singelton = False
+	hits = []
+	if len(path) == 1:
+		is_singleton = True
+	for index, other_path in enumerate(new_paths):
+		if path == other_path:
+			hits.append(index)
+		elif is_singleton:
+			nums = [step[0] for step in other_path]
+			if path[0][0] in nums:
+				hits.append(index)
+	if len(hits) > 1:
+		for hit in hits[1:]:
+			remove_indices.append(hit)
+remove_indices = list(set(remove_indices))		# remove duplicate indices
+for index in sorted(remove_indices, reverse=True):
+	del new_paths[index]
+
+if len(remove_indices) > 0:
+	print('Deleted ' + str(len(remove_indices)) + ' exact duplicate paths and singletons in other paths')
+	print('')
+
+
+
+# If possible, re-connect singletons that have been orphaned
+new_paths = sorted(new_paths, key=len, reverse=True)[:]
+singletons = []
+singleton_nums = []
+path_starts = []
+path_ends = []
+linked = 0
+unlinked = 0
+to_link = []
+to_delete = []
+for index, path in enumerate(new_paths):
+	if len(path) == 1:
+		singletons.append((index, path))
+		singleton_nums.append(path[0][0])
+	else:
+		path_starts.append(path[0])
+		path_ends.append(path[-1])
+
+for end in path_ends:
+	links = find_links(end[0], link_list)
+	for link in links:
+		if link[1] == end[1]:		# same direction
+			if link[2] in singleton_nums:
+				print('Found a hit from a path to a singleton!')
+				print(link)
+				for i, singleton in sorted(singletons, key=lambda x: x[1][0]):		# by contig number
+					if link[2] == singleton[0][0]:
+						for index, path in enumerate(new_paths):
+							if [link[0], link[1]] == path[-1]:
+								to_link.append((index, link))
+								to_delete.append(i)
+
+#for start in path_starts:
+#	links = find_links(start[0], link_list)
+#	for link in links:
+#		if link[2] in singleton_nums:
+#			if link[1] != start[1]:		# opposite direction, so possibly could be used after reverse complement
+#				print('Found a hit from a path to a singleton! (reverse)')
+#				print(link)
+
+
+for i, singleton in sorted(singletons, key=lambda x: x[1][0]):		# sort by contig number, so from largest actual sequence
+	links = find_links(singleton[0][0], link_list)
+	for link in links:
+		if [link[2], link[3]] in path_starts:		# a direct connection
+			print('Found a hit from a singleton to a path!')
+			print(link)
+			for index, path in enumerate(new_paths):
+				if [link[2], link[3]] == path[0]:
+					to_link.append((index, link))
+					to_delete.append(i)
+#		elif link[2] in [y[0] for y in path_ends]:
+#			for index, path in enumerate(new_paths):
+#				if all([link[2] == path[-1][0], link[3] != path[-1][1]]):
+#					print('Found a hit from a singleton to a path! (reverse)')
+#					print(link)
+
+		elif link[2] in singleton_nums:
+			print('Found a possible hit between singletons!')
+			print(link)
+
+
+for index, link in to_link:
+	if new_paths[index][0][0] == link[2]:		# the link is showing singleton --> path_start
+		new_paths[index] = [[link[0], link[1]]] + new_paths[index]		# concatenate
+		linked = linked + 1
+	elif new_paths[index][-1][0] == link[0]:		# the link is showing path_end --> singleton
+		new_paths[index] = new_paths[index] + [[link[2], link[3]]]
+		linked = linked + 1
+
+for index in sorted(to_delete, reverse=True):
+	del new_paths[index]
+
+for path in new_paths:
+	if len(path) == 1:
+		unlinked = unlinked + 1
+
+print('Singletons without links to other singletons or paths: ' + str(unlinked))
+print('Singletons re-linked with existing paths: ' + str(linked))
+print('')
+
+# Count and summarize the final path set
+final_paths = sorted(new_paths, key=len, reverse=True)[:]
 touched = []
 for path in sorted(final_paths, key=len, reverse=True):
 	nums = [step[0] for step in path]
@@ -318,11 +600,13 @@ for path in sorted(final_paths, key=len, reverse=True):
 		else:
 			touched.append(num)
 
+print('Total number of final paths: ' + str(len(final_paths)))
 print('Final difference between possible and included contigs:')
 print(set(range(1, len(seq_list))) - set(touched))
 print('')
 
-
+# Now create output paths and contigs from the filtered paths
+contig_counting = []
 with open('paths_out.txt', 'w') as outfile:
 	print('Outputting path sequences...')
 	index = 1
@@ -330,8 +614,35 @@ with open('paths_out.txt', 'w') as outfile:
 		link_str = ''
 		for step in path:
 			link_str = link_str + str(step[0]) + step[1] + ','
+			contig_counting.append(step[0])
 		outfile.write('Path ' + str(index) + ': ' + link_str.rstrip(',') + '\n')
 		index = index + 1
+	print('Over-represented contigs:')
+	over_contigs = []
+	counts = Counter(contig_counting)
+	for entry in counts:
+		if counts[entry] > 1:
+			over_contigs.append((entry, counts[entry]))
+	two_times = []
+	lfive = []
+	gfive = []
+	gten = []
+	for entry, count in over_contigs:
+		if count == 2:
+			two_times.append(entry)
+		elif count <= 5:
+			lfive.append(entry)
+		elif any([count > 5, count > 10]):
+			if count <= 10:
+				gfive.append(entry)
+			else:
+				gten.append(entry)
+		else:
+			print('Problem!')
+	print('Two times: ' + str(sorted(two_times)))
+	print('<=5: ' + str(sorted(lfive)))
+	print('>5: ' + str(sorted(gfive)))
+	print('>10: ' + str(sorted(gten)))
 
 with open('contigs_out.fasta', 'w') as outfile:
 	print('Outputting contigs...')
@@ -352,5 +663,5 @@ with open('contigs_out.fasta', 'w') as outfile:
 				else:
 					print('Problem with sequence ordering!')
 			contig_seq = contig_seq + step_seq
-		outfile.write('>contig' + str(index) + '\n' + contig_seq + '\n')
+		outfile.write('>contig_p' + str(index) + '\n' + contig_seq + '\n')
 		index = index + 1
