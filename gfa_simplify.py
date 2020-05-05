@@ -2,7 +2,7 @@
 
 #####################
 # Author: B. Anderson
-# Date: 29–30 April, 1 May 2020
+# Date: 29–30 April, 1, 5 May 2020
 # Description: attempt to simplify a complicated gfa graph structure from Bandage and output contigs
 #####################
 
@@ -134,7 +134,8 @@ def recursive_paths(seq_num, seq_dir, link_list, path_list, visited_list):
 circular = []
 linear = []
 filt_paths = []
-for seq_num, seq_str in seq_list:		# the seq_list is automatically sorted by length/line in the gfa file
+seq_list = sorted(seq_list, key=lambda x: len(x[1]), reverse=True)		# not always automatically sorted
+for seq_num, seq_str in seq_list:
 	links = find_links(seq_num, link_list)
 
 	print(str(seq_num) + ':')
@@ -213,11 +214,10 @@ print('Overall, there are ' + str(len(keep_paths)) + ' paths retained')
 print('Dropped: ' + str(dropped) + ' of ' + str(len(filt_paths)))
 print('')
 print('Difference between possible and included contigs:')
-print(set(range(1, len(seq_list))) - set(touched))
+print(set([x[0] for x in seq_list]) - set(touched))
 print('')
 print('Circular contigs:')
 print(circular)
-#print(set(range(1, len(seq_list))) - set(linear))
 print('')
 
 
@@ -602,7 +602,7 @@ for path in sorted(final_paths, key=len, reverse=True):
 
 print('Total number of final paths: ' + str(len(final_paths)))
 print('Final difference between possible and included contigs:')
-print(set(range(1, len(seq_list))) - set(touched))
+print(set([x[0] for x in seq_list]) - set(touched))
 print('')
 
 # Now create output paths and contigs from the filtered paths
@@ -652,16 +652,12 @@ with open('contigs_out.fasta', 'w') as outfile:
 		for step in path:
 			seq_num = step[0]
 			seq_dir = step[1]
+			seq_ind = [x[0] for x in seq_list].index(seq_num)
 			if seq_dir == '+':
-				if seq_num == seq_list[seq_num - 1][0]:
-					step_seq = seq_list[seq_num - 1][1]
-				else:
-					print('Problem with sequence ordering!')
+				step_seq = seq_list[seq_ind][1]
 			else:
-				if seq_num == seq_list[seq_num - 1][0]:
-					step_seq = str(Seq(seq_list[seq_num - 1][1]).reverse_complement())
-				else:
-					print('Problem with sequence ordering!')
+				step_seq = str(Seq(seq_list[seq_ind][1]).reverse_complement())
 			contig_seq = contig_seq + step_seq
 		outfile.write('>contig_p' + str(index) + '\n' + contig_seq + '\n')
 		index = index + 1
+
