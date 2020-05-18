@@ -132,7 +132,7 @@ if any([gene_name, coords]):
 		if gene_name:
 			for gbk in gbks:
 				for feature in gbk.features:
-					if feature.type == 'gene':
+					if all([feature.type == 'gene', 'gene' in feature.qualifiers]):
 						name = ''.join(feature.qualifiers['gene'][0].lower().split())
 						if name == gene_name.lower():
 							out_file.write(">%s from %s\n%s\n" % (name, gbk.name + ' ' + gbk.annotations['organism'],
