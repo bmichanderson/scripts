@@ -1,6 +1,6 @@
 #######################
 # Author: B. Anderson; some ideas from Sanchez-Puerta et al.
-# Date: 1 June 2020; 31 May 2020; 18 Jun 2019
+# Date: 4, 1 June 2020; 31 May 2020; 18 Jun 2019
 # Description: plot blastn hits in BED type format (can be obtained from blastn_parse.py)
 #######################
 
@@ -16,7 +16,7 @@ help <- function(help_message) {
 	cat("A script to plot BLASTN hits in BED format with slen\n\n")
 	cat("Usage: Rscript blastn_plot.R [-d dict_file] [-c plot_colour] plot_data.tab\n\n")
 	cat("Options:\n")
-	cat("	-c	The colour scheme of the plot [default Viridis]")
+	cat("	-c	The colour scheme of the plot [default Viridis]\n")
 	cat("	-d	A dictionary file with format: accession\tequivalent\n")
 	cat(help_message)
 }
@@ -103,17 +103,23 @@ sbjct_list <- split(data, f = data$sbjct)
 # plot for each subject
 for (sbjct_df in sbjct_list) {
 	chromstart <- 0	
-	# create a new column of values for rows that have the same query
-	new_data <- transform(sbjct_df, row_num = as.numeric(interaction(query, drop = TRUE)))
 
 	# set chromosome name and BED data format
-	chrom <- as.character(new_data$sbjct[1])
-	chromend <- as.numeric(new_data$slen[1])
-	beddata <- new_data[c("sbjct", "sbjct_start", "sbjct_end", "query", "score", "sstrand", "row_num")]
-	beddata <- beddata[order(beddata$query), ]
+	chrom <- as.character(sbjct_df$sbjct[1])
+	chromend <- as.numeric(sbjct_df$slen[1])
+	beddata <- sbjct_df[c("sbjct", "sbjct_start", "sbjct_end", "query", "score", "sstrand")]
+	beddata <- beddata[order(beddata$query, -beddata$score, decreasing = TRUE), ]
+
+	# create a new column of values for rows that have the same query
+	index <- 1
+	beddata$row_num <- 0
+	for (query in unique(beddata$query)) {
+		beddata$row_num[beddata$query == query] <- index
+		index <- index + 1
+	}
 
 	# plot so that each query or query bin has its own row
-	if (nrow(new_data) > 1) {
+	if (nrow(beddata) > 1) {
 		plotBed(	beddata = beddata, chrom = chrom, chromstart = chromstart, chromend = chromend, 
 				colorby = beddata$score, colorbycol = col_pal, colorbyrange = col_range, type = "region",	
 				row = "supplied", rowlabels = unique(beddata$query), rownumber = beddata$row_num, rowlabelcex = 0.5, 
@@ -131,3 +137,4 @@ for (sbjct_df in sbjct_list) {
 
 # stop making a pdf
 dev.off()
+
