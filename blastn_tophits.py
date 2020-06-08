@@ -277,7 +277,7 @@ for sbjct in hit_dict:
 		print('Found ' + str(identicals) + ' hits with identical score that entirely matched or overlapped another')
 		counter = counter - 1
 		pass_no = pass_no + 1
-
+		identicals = 0
 
 	# Now that the while loop is finished, output the final sbjct_list
 	top_hits_dict[sbjct] = sbjct_list
