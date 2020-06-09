@@ -104,6 +104,7 @@ print('')
 
 # if a plotting file was requested, create it
 if create_plot == 'yes':
+	too_short = 0
 	print('Creating BED-like plotting file plot_data.tab')
 	plot_file = open('plot_data.tab', 'w')
 
@@ -123,6 +124,12 @@ if create_plot == 'yes':
 			sstrand = '-'
 			sbjct_start = str(int(hsp[9]) - 1)		# we still need the smaller number first in BED
 			sbjct_end = hsp[8]
+
+
+		# determine if the hit is longer than min length
+		if int(sbjct_end) - int(sbjct_start) < len_thresh:
+			too_short = too_short + 1
+			continue
 
 		# determine query strand (NOT NECESSARY SINCE ALWAYS POSITIVE)
 #		if int(hsp[6]) < int(hsp[7]):		# positive strand
@@ -150,6 +157,11 @@ if create_plot == 'yes':
 
 		# print the line to the file
 		plot_file.write('\t'.join([sbjct, sbjct_start, sbjct_end, query, query_start, query_end, score, sstrand, qlen, slen]) + '\n')
+
+
+	# report how many shorter hits were removed (passed previously based on gaps)
+	if too_short > 0:
+		print('Did not copy ' + str(too_short) + ' hits based on too short subject coverage')
 
 	plot_file.close()
 

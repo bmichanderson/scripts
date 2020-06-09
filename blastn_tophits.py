@@ -17,7 +17,7 @@ parser = argparse.ArgumentParser(description = 'A script to parse plot_data.tab 
 # add arguments to parse
 parser.add_argument('plot_data', type=str, help='The plot_data.tab output to parse')
 parser.add_argument('-d', type=int, dest='id_diff', help='The maximum difference in percent identity to keep a hit at the same location [default 0]')
-parser.add_argument('-l', type=int, dest='min_length', help='The minimum length of a partial hit (trimmed) [default 50]')
+parser.add_argument('-l', type=int, dest='min_length', help='The minimum length of a hit or partial hit (trimmed) [default 50]')
 parser.add_argument('-p', type=int, dest='min_id', help='The minimum percent identity to keep a hit [default 50]')
 
 
@@ -77,10 +77,11 @@ with open(plot_data, 'r') as input:
 # For each subject, determine the top hits and keep them
 top_hits_dict = {}
 for sbjct in hit_dict:
-	counter = 3
+	counter = 5
 	pass_no = 1
 	sbjct_list = hit_dict[sbjct][:]
 	identicals = 0
+	too_short = 0
 
 	while counter > 0:
 		keep_hits = []
@@ -92,10 +93,11 @@ for sbjct in hit_dict:
 
 		# for each hit, calculate whether it overlaps another hit and the comparative score
 		keep_hits.append(sbjct_list[0])
-		ranges_covered.append([sbjct_list[0][1], sbjct_list[0][2], sbjct_list[0][6]])		# start, end, score
+		ranges_covered.append([sbjct_list[0][1], sbjct_list[0][2], sbjct_list[0][6], sbjct_list[0][3]])		# start, end, score, query
 		for hit in sbjct_list[1:]:
 			keep = True
 			keep_remain = True
+			query = hit[3]
 			start = hit[1]
 			end = hit[2]
 			score = hit[6]
@@ -110,53 +112,71 @@ for sbjct in hit_dict:
 					keep = False
 					break
 
+				if end - start < min_length:	# hit is too short
+					too_short = too_short + 1
+					keep = False
+					break
+
 				if score > range[2] + id_diff:			# hit has a higher score
 					counter = counter + 1		# queue another pass to re-sort the list
+					print('Queuing another pass to re-sort')
 					break
 
 				if all([start == range[0], end == range[1]]):		# hit coordinates are identical
 					if score == range[2]:				# hit score is also identical, so keep it
-						identicals = identicals + 1
-						break
+						if query == range[3]:			# same query, drop it
+							keep = False
+							break
+						else:
+							identicals = identicals + 1
+							break
 					elif range[2] - score > id_diff:		# hit score is less by more than id_diff
 						keep = False
 
 				elif any([start > range[1], end < range[0]]):		# hit is outside range, so keep it
 					continue
 
-				elif all([start > range[0], end < range[1]]):		# hit is completely within range
+				elif all([start >= range[0], end <= range[1]]):		# hit is completely within range
 					if score == range[2]:
-						identicals = identicals + 1
+						if query == range[3]:			# same query, drop it
+							keep = False
+							break
+						else:
+							identicals = identicals + 1
 					elif range[2] - score > id_diff:		# hit score is less by more than id_diff
 						keep = False
 
-				elif start == range[0]:			# end is incongruous
-					if all([end > range[1], end - range[1] >= min_length]):		# if extends and longer than min_length
-						frag2 = True
-						if end - range[1] < len2:		# if this is the shortest fragment
-							frag2_start = range[1]
-							len2 = end - frag2_start
-							if range[2] - score > id_diff:
-								keep_remain = False
-					elif score == range[2]:
-						identicals = identicals + 1
-					elif range[2] - score > id_diff:		# hit score is less by more than id_diff
-						keep = False
+#				elif start == range[0]:			# end is incongruous
+#					if all([end > range[1], end - range[1] >= min_length]):		# if extends and longer than min_length
+#						frag2 = True
+#						if end - range[1] < len2:		# if this is the shortest fragment
+#							frag2_start = range[1]
+#							len2 = end - frag2_start
+#							if range[2] - score > id_diff:
+#								keep_remain = False
+#					elif score == range[2]:
+#						identicals = identicals + 1
+#					elif range[2] - score > id_diff:		# hit score is less by more than id_diff
+#						keep = False
 
-				elif end == range[1]:			# start is incongruous
-					if all([start < range[0], range[0] - start >= min_length]):	# if extends and longer than min_length
-						frag1 = True
-						if range[0] - start < len1:		# if this is the shortest fragment
-							frag1_end = range[0]
-							len1 = frag1_end - start
-							if range[2] - score > id_diff:
-								keep_remain = False
-					elif score == range[2]:
-						identicals = identicals + 1
-					elif range[2] - score > id_diff:		# hit score is less by more than id_diff
-						keep = False
+#				elif end == range[1]:			# start is incongruous
+#					if all([start < range[0], range[0] - start >= min_length]):	# if extends and longer than min_length
+#						frag1 = True
+#						if range[0] - start < len1:		# if this is the shortest fragment
+#							frag1_end = range[0]
+#							len1 = frag1_end - start
+#							if range[2] - score > id_diff:
+#								keep_remain = False
+#					elif score == range[2]:
+#						if query == range[3]:			# same query, drop it
+#							keep = False
+#							break
+#						else:
+#							identicals = identicals + 1
+#					elif range[2] - score > id_diff:		# hit score is less by more than id_diff
+#						keep = False
 
-				elif all([start < range[0], end < range[1]]):		# hit overlaps left side
+				elif all([start < range[0], end <= range[1]]):		# hit overlaps left side
 					if range[0] - start >= min_length:		# if longer than min_length
 						frag1 = True
 						if range[0] - start < len1:		# if this is the shortest fragment
@@ -169,7 +189,7 @@ for sbjct in hit_dict:
 					elif range[2] - score > id_diff:		# hit score is less by more than id_diff
 						keep = False
 
-				elif all([start > range[0], end > range[1]]):		# hit overlaps right side
+				elif all([start >= range[0], end > range[1]]):		# hit overlaps right side
 					if end - range[1] >= min_length:			# if longer than min_length
 						frag2 = True
 						if end - range[1] < len2:		# if this is the shortest fragment
@@ -210,64 +230,71 @@ for sbjct in hit_dict:
 					if all([frag1, frag2]):
 						new_hit1 = list(hit)
 						new_hit1[2] = frag1_end
-						if new_hit1 not in keep_hits:
-							keep_hits.append(new_hit1)
-						if [start, frag1_end, score] not in ranges_covered:
-							ranges_covered.append([start, frag1_end, score])
+						if frag1_end - start >= min_length:
+							if new_hit1 not in keep_hits:
+								keep_hits.append(new_hit1)
+							if [start, frag1_end, score, query] not in ranges_covered:
+								ranges_covered.append([start, frag1_end, score, query])
 
 						new_hit2 = list(hit)
 						new_hit2[1] = frag2_start
-						if new_hit2 not in keep_hits:
-							keep_hits.append(new_hit2)
-						if [frag2_start, end, score] not in ranges_covered:
-							ranges_covered.append([frag2_start, end, score])
+						if end - frag2_start >= min_length:
+							if new_hit2 not in keep_hits:
+								keep_hits.append(new_hit2)
+							if [frag2_start, end, score, query] not in ranges_covered:
+								ranges_covered.append([frag2_start, end, score, query])
 
 						if keep_remain:
 							remainder = list(hit)
 							remainder[1] = frag1_end
 							remainder[2] = frag2_start
-							if remainder not in keep_hits:
-								keep_hits.append(remainder)
-							if [frag1_end, frag2_start, score] not in ranges_covered:
-								ranges_covered.append([frag1_end, frag2_start, score])
+							if frag2_start - frag1_end >= min_length:
+								if remainder not in keep_hits:
+									keep_hits.append(remainder)
+								if [frag1_end, frag2_start, score, query] not in ranges_covered:
+									ranges_covered.append([frag1_end, frag2_start, score, query])
 
 					elif frag1:
 						new_hit1 = list(hit)
 						new_hit1[2] = frag1_end
-						if new_hit1 not in keep_hits:
-							keep_hits.append(new_hit1)
-						if [start, frag1_end, score] not in ranges_covered:
-							ranges_covered.append([start, frag1_end, score])
+						if frag1_end - start >= min_length:
+							if new_hit1 not in keep_hits:
+								keep_hits.append(new_hit1)
+							if [start, frag1_end, score, query] not in ranges_covered:
+								ranges_covered.append([start, frag1_end, score, query])
 
 						if keep_remain:
 							remainder = list(hit)
 							remainder[1] = frag1_end
-							if remainder not in keep_hits:
-								keep_hits.append(remainder)
-							if [frag1_end, end, score] not in ranges_covered:
-								ranges_covered.append([frag1_end, end, score])
+							if end - frag1_end >= min_length:
+								if remainder not in keep_hits:
+									keep_hits.append(remainder)
+								if [frag1_end, end, score, query] not in ranges_covered:
+									ranges_covered.append([frag1_end, end, score, query])
 
 					elif frag2:
 						new_hit2 = list(hit)
 						new_hit2[1] = frag2_start
-						if new_hit2 not in keep_hits:
-							keep_hits.append(new_hit2)
-						if [frag2_start, end, score] not in ranges_covered:
-							ranges_covered.append([frag2_start, end, score])
+						if end - frag2_start >= min_length:
+							if new_hit2 not in keep_hits:
+								keep_hits.append(new_hit2)
+							if [frag2_start, end, score, query] not in ranges_covered:
+								ranges_covered.append([frag2_start, end, score, query])
 
 						if keep_remain:
 							remainder = list(hit)
 							remainder[2] = frag2_start
-							if remainder not in keep_hits:
-								keep_hits.append(remainder)
-							if [start, frag2_start, score] not in ranges_covered:
-								ranges_covered.append([start, frag2_start, score])
+							if frag2_start - start >= min_length:
+								if remainder not in keep_hits:
+									keep_hits.append(remainder)
+								if [start, frag2_start, score, query] not in ranges_covered:
+									ranges_covered.append([start, frag2_start, score, query])
 
 				else:
 					if hit not in keep_hits:
 						keep_hits.append(hit)
-					if [start, end, score] not in ranges_covered:
-						ranges_covered.append([start, end, score])
+					if [start, end, score, query] not in ranges_covered:
+						ranges_covered.append([start, end, score, query])
 
 		# re-set the sbjct list
 		sbjct_list = keep_hits
@@ -275,9 +302,12 @@ for sbjct in hit_dict:
 		# possibly re-iterate
 		print('Pass ' + str(pass_no) + ' complete for subject ' + sbjct)
 		print('Found ' + str(identicals) + ' hits with identical score that entirely matched or overlapped another')
+		if too_short > 0:
+			print('Chuck ' + str(too_short) + ' hits with length < min_length')
 		counter = counter - 1
 		pass_no = pass_no + 1
 		identicals = 0
+		too_short = 0
 
 	# Now that the while loop is finished, output the final sbjct_list
 	top_hits_dict[sbjct] = sbjct_list
