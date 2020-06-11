@@ -42,7 +42,7 @@ len_thresh = args.len_thresh
 pid_thresh = args.pid_thresh
 query_file = args.query
 sbjct_file = args.sbjct
-type = args.type.lower()
+type = args.type
 
 
 # assign variables depending upon whether present or not
@@ -66,7 +66,8 @@ if not pid_thresh:
 
 if not type:
 	type = 'n'
-elif any([type == 'x', type == 'n']):
+	print('BLASTN set by default')
+elif any([type.lower() == 'x', type.lower() == 'n']):
 	print('BLAST' + type.upper() + ' specified')
 else:
 	parser.print_help(sys.stderr)
