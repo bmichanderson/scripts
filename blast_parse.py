@@ -103,7 +103,7 @@ with open(blast_out, 'r') as b_file:
 
 	# check if there are any hits in the list
 	if len(hsp_list) == 0:		# no hits passed the filters
-		print('No BLAST hits passed filters for ' + blast_out)
+		print('No BLAST hits passed filters for ' + blast_out + '\n')
 		sys.exit()
 
 
