@@ -156,13 +156,14 @@ for fasta_file in "$@"; do
 
 	# Run BLAST searches and parse results
 
-	echo "Running BLAST searches for $fasta_base"
+	echo "**** Running BLAST searches for $fasta_base"
+	echo
 
 	for region in $(cat "$regions_path") ; do
 
 		if [ "$dbtype" = "nucl" ]; then
 
-			echo "Blasting for $region"
+			echo "#### Blasting for $region"
 
 			blastn -task blastn -query "$fasta_path" -db "$directory"/"$region"/"$region"_nucldb -outfmt "6 std qseq sseq qlen slen stitle" -max_target_seqs "$max_targs" -num_threads "$threads" > "$region"_blast.tab
 
@@ -170,12 +171,14 @@ for fasta_file in "$@"; do
 
 			if [ -s hits.txt ]; then		# if there is something in the file
 				mv hits.txt "$region"_"$dbtype"_hits.txt
-			else
+			elif [ -f hits.txt ]; then
 				rm hits.txt
 			fi
 			rm "$region"_blast.tab
 
 		elif [ "$dbtype" = "prot" ]; then
+
+			echo "#### Blasting for $region"
 
 			blastx -query "$fasta_path" -db "$directory"/"$region"/"$region"_protdb -outfmt "6 std qseq sseq qlen slen stitle" -max_target_seqs "$max_targs" -num_threads "$threads" > "$region"_blast.tab
 
@@ -183,7 +186,7 @@ for fasta_file in "$@"; do
 
 			if [ -s hits.txt ]; then		# if there is something in the file
 				mv hits.txt "$region"_"$dbtype"_hits.txt
-			else
+			elif [ -f hits.txt ]; then
 				rm hits.txt
 			fi
 			rm "$region"_blast.tab

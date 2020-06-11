@@ -82,7 +82,7 @@ hsp_list = []
 with open(blast_out, 'r') as b_file:
 	# check if there are any hits in the file
 	if len(b_file.read(1)) == 0:
-		print('No BLAST hits found for ' + blast_out)
+		print('No BLAST hits found for ' + blast_out + '\n')
 		sys.exit()
 	else:
 		# filter the hits
@@ -108,7 +108,6 @@ with open(blast_out, 'r') as b_file:
 
 
 # summarize and output the filtered blast results
-print('')
 print('After filtering, there are ' + str(len(hsp_list)) + ' blast high scoring segment pairs (hsps) retained')
 print('')
 
