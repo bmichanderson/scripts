@@ -2,7 +2,7 @@
 
 #####################
 # Author: B. Anderson
-# Date: 5 May 2020
+# Date: 16 July 2020
 # Description: attempt to simplify a complicated gfa graph structure from Bandage and output contigs
 #####################
 
@@ -15,9 +15,11 @@ from collections import Counter
 # instantiate the parser
 parser = argparse.ArgumentParser(description = 'A script to simplify complicated gfa graph structures from Bandage and output contigs')
 
+
 # add arguments to parse
 parser.add_argument('gfa_file', type=str, help='Required input of a gfa file representing the assembly structure')
 parser.add_argument('-p', type=str, dest='paths_file', help='An option to read in an existing modified paths file for only exporting contigs')
+
 
 # parse the command line
 if len(sys.argv[1:]) == 0:
@@ -27,6 +29,11 @@ args = parser.parse_args()
 gfa_file = args.gfa_file
 paths_file = args.paths_file
 
+if paths_file:
+	pathsfile_present = True
+else:
+	pathsfile_present = False
+
 
 # read in the gfa file and capture the sequences, their lengths, and the links
 seq_list = []
@@ -34,10 +41,11 @@ link_list = []
 length_tally = 0
 with open(gfa_file, 'r') as gfafile:
 	for line in gfafile:
-		if line.split()[0] == 'S':		# a sequence line
-			seq_num = int(line.split()[1])
-			seq_str = line.split()[2]
-			seq_len = int(line.split()[3].split(':')[2])
+		line_elements = line.split()
+		if line_elements[0] == 'S':		# a sequence line
+			seq_num = line_elements[1]
+			seq_str = line_elements[2]
+			seq_len = int(line_elements[3].split(':')[2])
 			if len(seq_str) != seq_len:
 				print('Problem with sequence length for sequence ' + str(seq_num) + '!')
 			length_tally = length_tally + seq_len
@@ -46,15 +54,14 @@ with open(gfa_file, 'r') as gfafile:
 			else:
 				print('Problem with sequence labelling for sequence ' + str(seq_num) + '!')
 
-		elif line.split()[0] == 'L':		# a link line
-			seq_1 = int(line.split()[1])
-			seq_1_dir = line.split()[2]
-			seq_2 = int(line.split()[3])
-			seq_2_dir = line.split()[4]
-			overlap = line.split()[5]
-			if overlap != '0M':
-				print('Overlap detected between ' + str(seq_1) + ' and ' + str(seq_2) + '!')
-			link_list.append([seq_1, seq_1_dir, seq_2, seq_2_dir])
+		elif line_elements[0] == 'L':		# a link line
+			seq_1 = line_elements[1]
+			seq_1_dir = line_elements[2]
+			seq_2 = line_elements[3]
+			seq_2_dir = line_elements[4]
+			overlap = int(line_elements[5].strip('M'))
+
+			link_list.append([seq_1, seq_1_dir, seq_2, seq_2_dir, overlap])
 
 			# also append the corresponding connection in the other direction
 			if seq_2_dir == '+':
@@ -65,8 +72,10 @@ with open(gfa_file, 'r') as gfafile:
 				seq_2b_dir = '-'
 			else:
 				seq_2b_dir = '+'
-			link_list.append([seq_2, seq_1b_dir, seq_1, seq_2b_dir])
-		else:
+
+			link_list.append([seq_2, seq_1b_dir, seq_1, seq_2b_dir, overlap])
+
+		else:		# skipping possible path lines
 			continue
 
 print('Read in ' + str(len(seq_list)) + ' nodes and ' + str(int(len(link_list)/2)) + ' links')
@@ -74,19 +83,13 @@ print('Total length of assembly graph: ' + str(length_tally))
 print('')
 
 
-# determine if there is a paths file present, and if so, set a flag to skip analysis and go to contig output
-if paths_file:
-	pathsfile_present = True
-else:
-	pathsfile_present = False
-
-
-
 
 #################################
-# Define functions to be used later if analysing
+# Define functions
 #################################
 
+
+## find_links
 # define a function to retrieve the links for a given sequence number
 def find_links(seq_num, link_list):
 	hit = False
@@ -114,19 +117,20 @@ def find_links(seq_num, link_list):
 		return links
 
 
+## recursive_paths
 # define a function for recursive search of paths (depends on find_links)
 def recursive_paths(seq_num, seq_dir, link_list, path_list, visited_list):
 	global all_paths		# needs to be defined each time prior to calling this function
 
 	# determine links for the input seq_num
 	next_links = find_links(seq_num, link_list)
-	if next_links == 'Not':		# shouldn't happen
-		sys.exit('Hit a \"Not\" return from links!')		# troubleshooting
+	if any([next_links == 'Not', next_links == 'Circle']):		# shouldn't happen
+		sys.exit('Hit a \"Not\" or \"Circle\" return from links for ' + seq_num + '!')		# troubleshooting
 	else:
 		hit = False
 		for link in next_links:
 			if not link:		# shouldn't happen
-				print('Hit a non-link!')
+				print('Hit a non-link!')		# troubleshooting
 				continue
 
 			if link[1] == seq_dir:		# a continuation from the previous contig
@@ -149,7 +153,7 @@ def recursive_paths(seq_num, seq_dir, link_list, path_list, visited_list):
 			all_paths.append(path_list)
 
 
-
+## longest_match
 # Define a function for finding the longest hit (indices of first argument) between two lists of numbers
 def longest_match(series1, series2):
 	longest_matches = []
@@ -181,6 +185,8 @@ def longest_match(series1, series2):
 	else:
 		return []
 
+
+## remove_overlap
 # Define a function for simplifying overlapping paths (depends on longest_match)
 def remove_overlap(paths_list):
 	paths_list = sorted(paths_list, key=len, reverse=True)		# sort the list by length
@@ -285,34 +291,33 @@ def remove_overlap(paths_list):
 
 
 
-
+##########################
+# Continue execution
 ##########################
 # if there is no paths file provided, proceed to generate all possible paths
 if not pathsfile_present:
 
-
 	# starting with the longest node, follow links to determine all possible paths
 	# find longest paths and non-redundant representation of the possible paths
 	circular = []
-	linear = []
+	disconnected = []
 	filt_paths = []
 	seq_list = sorted(seq_list, key=lambda x: len(x[1]), reverse=True)		# not always automatically sorted
 	for seq_num, seq_str in seq_list:
 		links = find_links(seq_num, link_list)
 
-		print(str(seq_num) + ':')
+		#print(str(seq_num) + ':')
 
 		if links == 'Circle':
-			print('Circle')
-			print('')
+			#print('Circle')
+			#print('')
 			circular.append(seq_num)
 			continue
 		elif links == 'Not':
-			print('Not')
-			print('')
+			#print('No links found')
+			#print('')
+			disconnected.append(seq_num)
 			continue
-		else:
-			linear.append(seq_num)
 
 		for link in links:
 			all_paths = []		# a global variable to be updated for each link in recursive_paths
@@ -320,9 +325,7 @@ if not pathsfile_present:
 			path_list.append([link[0], link[1]])
 			path_list.append([link[2], link[3]])
 			visited_list = []
-			#visited_list.append(str(link[0]) + link[1])
 			visited_list.append(link[0])
-			#visited_list.append(str(link[2]) + link[3])
 			visited_list.append(link[2])
 
 			# recursively determine possible paths, stopping when hitting a contig visited before
@@ -345,9 +348,6 @@ if not pathsfile_present:
 					keep_paths.append(path)
 				else:
 					dropped = dropped + 1
-
-	#		print(set(range(1, len(seq_list))) - set(touched))
-	#		print('Dropped: ' + str(dropped) + ' of ' + str(len(all_paths)))
 
 			for path in keep_paths:
 				filt_paths.append(path)
@@ -376,18 +376,23 @@ if not pathsfile_present:
 	print('Dropped: ' + str(dropped) + ' of ' + str(len(filt_paths)))
 	print('')
 	print('Difference between possible and included contigs:')
-	print(set([x[0] for x in seq_list]) - set(touched))
+	print(set([x[0] for x in seq_list]) - set(touched) - set(circular) - set(disconnected))
 	print('')
-	print('Circular contigs:')
-	print(circular)
-	print('')
+	if circular:
+		print('Circular contigs:')
+		print(circular)
+		print('')
+	if disconnected:
+		print('Disconnected contigs:')
+		print(disconnected)
+		print('')
 
 
 	# Now we need to reduce path overlap to try to get the smallest representation of the mess of connections
 	# Simplifying to remove sections of paths that are contained in longer paths (iteratively)
 	new_paths = keep_paths[:]
 	i = 0
-	while i < 10:
+	while i < 10:		# set number of iterations to 10
 		new_paths = remove_overlap(new_paths)
 		print(len(new_paths))
 		i = i + 1
@@ -401,7 +406,6 @@ if not pathsfile_present:
 	hit_end = False
 	iteration_counter = 1
 	while not hit_end:
-		#print('Starting loop ' + str(iteration_counter))
 		for index, path in enumerate(new_paths):
 			hit_merge = False
 			to_merge = ()
@@ -419,7 +423,6 @@ if not pathsfile_present:
 				if index == other_index:		# the same path
 					continue
 				if path[-1] == other_path[0]:		# exact same end and start point
-					#print('Found a merger!')
 					to_merge = (index, other_index)
 					hit_merge = True
 					break
@@ -469,11 +472,9 @@ if not pathsfile_present:
 				other_nums = [step[0] for step in other_path]	# turn the path into a series of numbers
 
 				if all([not tstart, nums[0] in other_nums]):		# start present inside another path
-					#print('Start hit!')
 					tstart = True
 					trim_start = index
 				if all([not tend, nums[-1] in other_nums]):		# end present in another path
-					#print('End hit!')
 					tend = True
 					trim_end = index
 
@@ -531,7 +532,6 @@ if not pathsfile_present:
 		print('')
 
 
-
 	# If possible, re-connect singletons that have been orphaned
 	new_paths = sorted(new_paths, key=len, reverse=True)[:]
 	singletons = []
@@ -564,14 +564,6 @@ if not pathsfile_present:
 									to_link.append((index, link))
 									to_delete.append(i)
 
-	#for start in path_starts:
-	#	links = find_links(start[0], link_list)
-	#	for link in links:
-	#		if link[2] in singleton_nums:
-	#			if link[1] != start[1]:		# opposite direction, so possibly could be used after reverse complement
-	#				print('Found a hit from a path to a singleton! (reverse)')
-	#				print(link)
-
 
 	for i, singleton in sorted(singletons, key=lambda x: x[1][0]):		# sort by contig number, so from largest actual sequence
 		links = find_links(singleton[0][0], link_list)
@@ -583,11 +575,6 @@ if not pathsfile_present:
 					if [link[2], link[3]] == path[0]:
 						to_link.append((index, link))
 						to_delete.append(i)
-	#		elif link[2] in [y[0] for y in path_ends]:
-	#			for index, path in enumerate(new_paths):
-	#				if all([link[2] == path[-1][0], link[3] != path[-1][1]]):
-	#					print('Found a hit from a singleton to a path! (reverse)')
-	#					print(link)
 
 			elif link[2] in singleton_nums:
 				print('Found a possible hit between singletons!')
@@ -618,14 +605,23 @@ if not pathsfile_present:
 ########################
 # Now, read in the paths file if present; otherwise, proceed with the existing paths
 if pathsfile_present:
+	circular = []
+	disconnected = []
 	paths = []
 	with open(paths_file, 'r') as pfile:
 		for line in pfile:
 			path_string = line.strip().split()[2]
 			path_list = path_string.split(',')
-			path = [[int(x[0:-1]), x[-1]] for x in path_list]
-			paths.append(path)
+			path = [[x[0:-1], x[-1]] for x in path_list]
+
+			if line.strip().split()[0] == 'Circle':
+				circular.append(path[0][0])
+			elif line.strip().split()[0] == 'Disc':
+				disconnected.append(path[0][0])
+			else:
+				paths.append(path)
 	final_paths = sorted(paths, key=len, reverse=True)
+
 
 # Count and summarize the final path set
 if not pathsfile_present:
@@ -642,23 +638,37 @@ for path in sorted(final_paths, key=len, reverse=True):
 
 print('Total number of final paths: ' + str(len(final_paths)))
 print('Final difference between possible and included contigs:')
-print(set([x[0] for x in seq_list]) - set(touched))
+print(set([x[0] for x in seq_list]) - set(touched) - set(circular) - set(disconnected))
 print('')
 
 
 # Create output paths and contigs from the filtered paths
 contig_counting = []
 with open('paths_out.txt', 'w') as outfile:
-	print('Outputting path sequences...')
+	print('Outputting path sequences to paths_out.txt')
 	index = 1
 	for path in final_paths:
 		link_str = ''
 		for step in path:
-			link_str = link_str + str(step[0]) + step[1] + ','
+			link_str = link_str + step[0] + step[1] + ','
 			contig_counting.append(step[0])
 		outfile.write('Path ' + str(index) + ': ' + link_str.rstrip(',') + '\n')
 		index = index + 1
-	print('Over-represented contigs:')
+
+	# need to output paths for circles and disconnected pieces
+	if circular:
+		index = 1
+		for circ in circular:
+			outfile.write('Circle ' + str(index) + ': ' + circ + '+' + '\n')
+			index = index + 1
+	if disconnected:
+		index = 1
+		for disc in disconnected:
+			outfile.write('Disc ' + str(index) + ': ' + disc + '+' + '\n')
+			index = index + 1
+
+
+	# check if there are over-represented contigs
 	over_contigs = []
 	counts = Counter(contig_counting)
 	for entry in counts:
@@ -680,26 +690,87 @@ with open('paths_out.txt', 'w') as outfile:
 				gten.append(entry)
 		else:
 			print('Problem!')
-	print('Two times: ' + str(sorted(two_times)))
-	print('<=5: ' + str(sorted(lfive)))
-	print('>5: ' + str(sorted(gfive)))
-	print('>10: ' + str(sorted(gten)))
+	if any([two_times, lfive, gfive, gten]):
+		print('Over-represented contigs:')
+		if two_times:
+			print('Two times: ' + str(sorted(two_times)))
+		if lfive:
+			print('<=5: ' + str(sorted(lfive)))
+		if gfive:
+			print('>5: ' + str(sorted(gfive)))
+		if gten:
+			print('>10: ' + str(sorted(gten)))
 
 
 # Generate contigs
 with open('contigs_out.fasta', 'w') as outfile:
-	print('Outputting contigs...')
+	print('Outputting contigs to contigs_out.fasta')
 	index = 1
 	for path in final_paths:
 		contig_seq = ''
-		for step in path:
+		for i, step in enumerate(path):
 			seq_num = step[0]
 			seq_dir = step[1]
 			seq_ind = [x[0] for x in seq_list].index(seq_num)
-			if seq_dir == '+':
-				step_seq = seq_list[seq_ind][1]
-			else:
-				step_seq = str(Seq(seq_list[seq_ind][1]).reverse_complement())
+			seq_str = seq_list[seq_ind][1]
+			if i < len(path) - 1:		# if the step continues to another, there is a chance of overlap
+				for link in link_list:
+					if all([link[0] == seq_num, link[2] == path[i + 1][0]]):
+						overlap = link[4]
+						break
+				if seq_dir == '+':
+					step_seq = seq_str[:len(seq_str)-overlap]
+				else:
+					step_seq = str(Seq(seq_str).reverse_complement()[:len(seq_str)-overlap])
+			else:		# if the step is a singleton or the last step
+				if len(path) == 1:	# if the step is a singleton (don't want to duplicate overlaps from paths that have been axed)
+					max_overlap1 = 0
+					max_overlap2 = 0
+					hit_1 = False
+					hit_2 = False
+					for link in link_list:
+						if link[0] == seq_num:
+							if link[1] == '+':
+								hit_1 = True
+								if link[4] > max_overlap1:
+									max_overlap1 = link[4]
+							elif link[1] == '-':
+								hit_2 = True
+								if link[4] > max_overlap2:
+									max_overlap2 = link[4]
+					if all([hit_1, hit_2]):
+						step_seq = seq_str[max_overlap2:len(seq_str)-max_overlap1]
+					elif hit_1:
+						step_seq = seq_str[:len(seq_str)-max_overlap1]
+					elif hit_2:
+						step_seq = str(Seq(seq_str).reverse_complement()[:len(seq_str)-max_overlap2])
+					else:
+						print('Singleton has no path links!?!?')		# troubleshooting
+				else:		# if the step is the last step in a longer path
+					if seq_dir == '+':
+						step_seq = seq_str
+					else:
+						step_seq = str(Seq(seq_str).reverse_complement())
 			contig_seq = contig_seq + step_seq
 		outfile.write('>contig_p' + str(index) + '\n' + contig_seq + '\n')
 		index = index + 1
+
+	if circular:
+		index = 1
+		for circ in circular:
+			for link in link_list:
+				if all([link[0] == circ, link[2] == circ]):
+					overlap = link[4]
+					break
+			seq_ind = [x[0] for x in seq_list].index(circ)
+			contig_seq = seq_list[seq_ind][1][:-overlap]
+			outfile.write('>contig_c' + str(index) + '\n' + contig_seq + '\n')
+			index = index + 1
+
+	if disconnected:
+		index = 1
+		for disc in disconnected:
+			seq_ind = [x[0] for x in seq_list].index(disc)
+			contig_seq = seq_list[seq_ind][1]
+			outfile.write('>contig_d' + str(index) + '\n' + contig_seq + '\n')
+			index = index + 1
