@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
 #################
-# Script: seq_stats.py
 # Author: B. Anderson
 # Date: 27 Apr 2020
+# Modified: Oct 2020
 # Description: output basic sequence statistics for a set of input fasta files
 #################
 
@@ -22,6 +22,7 @@ def help():
 # print help if the script is called without arguments
 if len(sys.argv[1:]) == 0:
 	sys.exit(help())
+
 
 # for each of the input files, read the sequence(s) then calculate and output stats
 cum_seqs = []

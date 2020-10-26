@@ -1,7 +1,9 @@
 #!/usr/bin/env python
+
 ##########################
 # Author: B. Anderson
 # Date: 12 June 2020
+# Modified: Oct 2020
 # Description: extract a sequence from a fasta given start and end coordinates (1-based and end-inclusive)
 ##########################
 
