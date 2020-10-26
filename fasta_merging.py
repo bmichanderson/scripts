@@ -3,6 +3,7 @@
 ##########################
 # Author: B. Anderson
 # Date: 18 May 2020
+# Modified: Oct 2020
 # Description: read a multifasta file and output a fasta file with the sequences merged together into one
 ##########################
 
