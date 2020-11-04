@@ -11,12 +11,11 @@
 # Define a help function for an incorrect or empty call
 help()
 {
-(	echo "This script runs a series of QC steps on Illumina paired reads"
-	echo "It requires BBMap scripts in the PATH, as well as fastqc"
-	echo "It will create two corrected read files, as well as a merged and a pair of unmerged files"
-	echo "It will also summarize read lengths in the merged and unmerged files, and create a log qc.log"
-	echo
-	echo "Usage: initial_qc.sh file1 file2"
+(	echo -e '\n''\t'"This script runs a series of QC steps on Illumina paired reads"
+	echo -e '\t'"It requires BBMap scripts in the PATH, as well as fastqc"
+	echo -e '\t'"It will create two corrected read files, as well as a merged and a pair of unmerged files"
+	echo -e '\t'"It will also summarize read lengths in the merged and unmerged files, and create a log qc.log"'\n'
+	echo -e '\t'"Usage: initial_qc.sh file1 file2"'\n'
 ) 1>&2
 	exit 1
 }
@@ -25,6 +24,7 @@ help()
 # Check if there are the correct number of command arguments
 if [ $# -ne 2 ]; then
 	help
+fi
 
 
 # Create a log file
@@ -52,9 +52,9 @@ echo -e '\n'"****"'\n'"Trimming adapters and for quality and PhiX"'\n'"****"'\n'
 bbduk.sh in1=dedup_1.fastq.gz in2=dedup_2.fastq.gz out1=temp1_1.fastq.gz out2=temp1_2.fastq.gz ktrim=r \
 literal="AGATCGGAAGAGCACACGTCTGAACTCCAGTCA","AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT" k=21 hdist=2 hdist2=1 mink=15 \
 minlength=50 tbo tpe |& tee -a qc.log && \
-bbduk.sh in1=temp1_1.fastq.gz in2=temp1_2.fastq.gz out1=temp2_1.fastq.gz out2=temp2_2.fastq.gz krtim=r \
+bbduk.sh in1=temp1_1.fastq.gz in2=temp1_2.fastq.gz out1=temp2_1.fastq.gz out2=temp2_2.fastq.gz ktrim=r \
 literal="AGATCGGAAGAGCAC","AGATCGGAAGAGCGT" k=8 restrictright=15 minlength=50 |& tee -a qc.log && \
-bbduk.sh in1=temp2_1.fastq.gz in2=temp2_2.fastq.gz out1=temp3_1.fastq.gz out2=temp3_2.fastq.gz krtim=r \
+bbduk.sh in1=temp2_1.fastq.gz in2=temp2_2.fastq.gz out1=temp3_1.fastq.gz out2=temp3_2.fastq.gz ktrim=r \
 literal="AGATCGGA","AGATCGGA" k=6 restrictright=8 minlength=50 maxns=0 qtrim=r trimq=20 |& tee -a qc.log && \
 bbduk.sh in1=temp3_1.fastq.gz in2=temp3_2.fastq.gz out1=trim_dedup_1.fastq.gz out2=trim_dedup_2.fastq.gz ref=phix k=31 hdist=2 |& tee -a qc.log && \
 rm temp* dedup*
@@ -104,6 +104,7 @@ readlength.sh in1=corrected_1.fastq.gz in2=corrected_2.fastq.gz out=readlength_q
 # Report time taken for the QC steps
 end=$(date +%s)
 duration=$(( $end - $start ))
+duration_mins=$(echo "scale=2; ${duration}/60" | bc)
 duration_hours=$(echo "scale=2; ${duration}/3600" | bc)
 
-echo -e '\n'"Finished at $(date), after running for $duration seconds, or $duration_hours hours" | tee -a qc.log
+echo -e '\n'"Finished at $(date), after running for $duration seconds, or $duration_mins minutes, or $duration_hours hours" | tee -a qc.log
