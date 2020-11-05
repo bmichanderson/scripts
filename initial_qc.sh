@@ -32,10 +32,10 @@ echo -e "Quality control log file"'\n' > qc.log
 
 
 # Report starting time
-echo "Starting QC run at $(date) with the following input:"
-echo "Working directory: $(pwd)"
-echo "file1 = $1"
-echo "file2 = $2"
+echo "Starting QC run at $(date) with the following input:" | tee -a qc.log
+echo "Working directory: $(pwd)" | tee -a qc.log
+echo "file1 = $1" | tee -a qc.log
+echo "file2 = $2" | tee -a qc.log
 
 start=$(date +%s)
 
@@ -64,12 +64,12 @@ rm temp* dedup*
 echo -e '\n'"****"'\n'"Correcting sequencing errors"'\n'"****"'\n' | tee -a qc.log
 
 reformat.sh in1=trim_dedup_1.fastq.gz in2=trim_dedup_2.fastq.gz out=temp.fastq.gz |& tee -a qc.log && \
-bbmerge.sh in=temp.fastq.gz out=ecco.fastq.gz ecco mix vstrict ordered prefilter=2 prealloc=t minlength=50 && \
-mv ecco.fastq.gz temp.fastq.gz |& tee -a qc.log && \
-clumpify.sh in=temp.fastq.gz out=eccc.fastq.gz ecc passes=4 && \
-mv eccc.fastq.gz temp.fastq.gz |& tee -a qc.log && \
-tadpole.sh in=temp.fastq.gz out=ecct.fastq.gz ecc k=62 ordered prefilter=2 prealloc=t errormult1=64 && \
-mv ecct.fastq.gz temp.fastq.gz |& tee -a qc.log
+bbmerge.sh in=temp.fastq.gz out=ecco.fastq.gz ecco mix vstrict ordered prefilter=2 prealloc=t minlength=50 |& tee -a qc.log && \
+mv ecco.fastq.gz temp.fastq.gz && \
+clumpify.sh in=temp.fastq.gz out=eccc.fastq.gz ecc passes=4 |& tee -a qc.log && \
+mv eccc.fastq.gz temp.fastq.gz && \
+tadpole.sh in=temp.fastq.gz out=ecct.fastq.gz ecc k=62 ordered prefilter=2 prealloc=t errormult1=64 |& tee -a qc.log && \
+mv ecct.fastq.gz temp.fastq.gz
 
 
 # Step 4: Merge overlapping reads then limit read length and rename
