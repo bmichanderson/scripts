@@ -54,6 +54,7 @@ with open(con, 'r') as fasta_file:
 	for con in SeqIO.parse(fasta_file, 'fasta'):
 		con_list.append(con)
 
+print('')
 print('Read in ' + str(len(con_list)) + ' contigs')
 
 
