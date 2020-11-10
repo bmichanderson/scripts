@@ -68,7 +68,7 @@ with open('temp.xml', 'r') as result_handle:
 			lengths = []
 			for align in blast_record.alignments:
 				for hsp in align.hsps:
-					if all([hsp.identities / hsp.align_length * 100 > 70, hsp.align_length > 100]):
+					if all([float(hsp.identities)/float(hsp.align_length) * 100 > 70, hsp.align_length > 100]):
 						lengths.append(hsp.align_length)
 
 			for con in con_list:
