@@ -207,7 +207,7 @@ if [ "$input_type" = "paired" ]; then
 	echo -e '\n'"Merging overlapping reads"'\n' | tee -a qc.log
 
 	bbmerge-auto.sh in=temp.fastq.gz out=temp_merged.fastq.gz outu=temp_unmerged.fastq.gz strict k=93 \
-	extend2=80 rem ordered prefilter=2 prealloc=t -Xmx"$max_mem" |& tee -q qc.log
+	extend2=80 rem ordered prefilter=2 prealloc=t -Xmx"$max_mem" |& tee -a qc.log
 
 fi
 
