@@ -219,11 +219,11 @@ if [ "$input_type" = "paired" ]; then
 
 	bbduk.sh in=temp_merged.fastq.gz out=merged.fastq.gz minlength=50 |& tee -a qc.log && \
 	bbduk.sh in=temp_unmerged.fastq.gz out1=unmerged_1.fastq.gz out2=unmerged_2.fastq.gz minlength=50 |& tee -a qc.log && \
-	bbduk.sh in=ecct.fastq.gz out1=corrected_1.fastq.gz out2=corrected_2.fastq.gz minlength=50 |& tee -a qc.log
+	bbduk.sh in=temp.fastq.gz out1=corrected_1.fastq.gz out2=corrected_2.fastq.gz minlength=50 |& tee -a qc.log
 
 else
 
-	bbduk.sh in=ecct.fastq.gz out=corrected.fastq.gz minlength=50 |& tee -a qc.log
+	bbduk.sh in=temp.fastq.gz out=corrected.fastq.gz minlength=50 |& tee -a qc.log
 
 fi
 
