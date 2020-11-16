@@ -52,12 +52,12 @@ irlen=$(awk ' NR==2 {print $4} ' temp_blast.out)
 
 # a: find largest possible IR (start may be in an IR) by setting a new contig at half length location and comparing blast results
 
-"$reform_script" temp_cp.fasta $(echo "$len / 2" | bc) && mv new_contig.fasta cp2.fasta
-makeblastdb -in cp2.fasta -out db2 -dbtype nucl -logfile temp.log
-blastn -query cp2.fasta -db db2 -outfmt 6 | head > temp_blast2.out
+"$reform_script" temp_cp.fasta $(echo "$len / 2" | bc) && mv new_contig.fasta temp_cp2.fasta
+makeblastdb -in temp_cp2.fasta -out db2 -dbtype nucl -logfile temp.log
+blastn -query temp_cp2.fasta -db db2 -outfmt 6 | head > temp_blast2.out
 
 ir2len=$(awk ' NR==2 {print $4} ' temp_blast2.out)
-if [ $ir2len -gt $irlen ]; then echo "found longer IR" && mv cp2.fasta temp_cp.fasta && mv temp_blast2.out temp_blast.out; else rm cp2.fasta; fi
+if [ $ir2len -gt $irlen ]; then echo "found longer IR" && mv temp_cp2.fasta temp_cp.fasta && mv temp_blast2.out temp_blast.out; fi
 rm db*
 
 
