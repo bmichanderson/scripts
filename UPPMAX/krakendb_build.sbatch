@@ -52,7 +52,7 @@ kraken2-build --threads "$SLURM_NPROCS" --build --db "$kraken2db_name"
 kraken2-build --threads "$SLURM_NPROCS" --clean --db "$kraken2db_name"
 
 # create a folder on the storage drive and copy the database to it
-kraken2db_dir=/proj/uppstore2018195/kraken2db
+kraken2db_dir=/proj/snic2020-16-240/kraken2db
 if [ ! -d "$kraken2db_dir" ]; then
 	mkdir -p "$kraken2db_dir"
 fi
@@ -70,7 +70,7 @@ else
 	system=rackham
 fi
 
-out_dir=/proj/uppstore2018195/runs/"$SLURM_JOB_ID"
+out_dir=/proj/snic2020-16-240/runs/"$SLURM_JOB_ID"
 if [ ! -d "$out_dir" ]; then
 	mkdir -p "$out_dir"
 fi

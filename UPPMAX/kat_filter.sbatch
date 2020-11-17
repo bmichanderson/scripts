@@ -145,7 +145,7 @@ echo
 echo "Copying files to working directory"
 echo
 
-cp /proj/uppstore2018195/software/singularity-containers/kat.img "$work_dir"
+cp /proj/snic2020-16-240/software/singularity-containers/kat.img "$work_dir"
 
 
 if [ "$forward" != "absent" ]; then
@@ -285,7 +285,7 @@ rm kat.img
 echo
 echo "Copying output to the storage directory under ID: $SLURM_JOB_ID"
 
-out_dir=/proj/uppstore2018195/runs/"$SLURM_JOB_ID"
+out_dir=/proj/snic2020-16-240/runs/"$SLURM_JOB_ID"
 
 if [ ! -d "$out_dir" ]; then
 	mkdir -p "$out_dir"

@@ -105,7 +105,7 @@ ktImportTaxonomy <( cut -f2,3 "output_kraken2.tsv" ) -o output_kraken2_krona.htm
 
 
 # copy the results to storage
-out_dir=/proj/uppstore2018195/runs/"$SLURM_JOB_ID"
+out_dir=/proj/snic2020-16-240/runs/"$SLURM_JOB_ID"
 
 if [ ! -d "$out_dir" ]; then
 	mkdir -p "$out_dir"

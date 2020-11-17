@@ -149,7 +149,7 @@ echo
 
 rm "$( basename $reads)"
 
-out_dir=/proj/uppstore2018195/runs/"$SLURM_JOB_ID"
+out_dir=/proj/snic2020-16-240/runs/"$SLURM_JOB_ID"
 
 if [ ! -d "$out_dir" ]; then
 	mkdir -p "$out_dir"
