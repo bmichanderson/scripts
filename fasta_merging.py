@@ -7,49 +7,67 @@
 # Description: read a multifasta file and output a fasta file with the sequences merged together into one
 ##########################
 
+
+import argparse
 import sys				# allows access to command line arguments
-import re				# for use of regular expressions
+#import re				# for use of regular expressions
 from Bio import SeqIO			# for reading and writing sequence records
-
-def help():
-	print('A script to combine entries of a multifasta into a single fasta.')
-	print('The fasta is output as a single file called merged.fasta in the current directory.')
-	print('')
-	print('Usage: ' + str(sys.argv[0]) + ' file')
-	print('')
+from Bio.Seq import Seq
 
 
-# print help if the script is called without args
-if len(sys.argv[1:]) == 0:
-	sys.exit(help())
+# instantiate the parser
+parser = argparse.ArgumentParser(description = 'A script to combine entries of a multifasta into a single fasta, with the option of a spacer')
+
+
+# add arguments to parse
+parser.add_argument('contigs', type=str, help='The (multi)fasta file to combine')
+parser.add_argument('-s', type=str, dest='spacer', help='Specify a text string of bases to be used as a spacer between contigs, e.g. N')
+parser.add_argument('-r', type=int, dest='repeats', help='Specify the number of times the string is repeated in the spacer, e.g. 100 [default = 1]')
+
+
+# parse the command line
+if len(sys.argv[1:]) == 0:              # if there are no arguments
+        parser.print_help(sys.stderr)
+        sys.exit(1)
+
+args = parser.parse_args()
+
+con = args.contigs
+spacer = args.spacer
+repeats = args.repeats
+
+if not repeats:
+	repeats = 1
+
+if not spacer:
+        spacer_present = False
+else:
+	spacer_present = True
+	spacer = Seq(spacer*repeats)
 
 
 # read in and merge sequences
-seqs = []
-with open(sys.argv[1], 'r') as fasta_file, open('merged.fasta', 'w') as out_file:
-	fasta_iter = SeqIO.parse(fasta_file, 'fasta')
-	index = 1
-	for fasta in fasta_iter:
-		if index == 1:
-			index = index + 1
-			fasta1 = fasta
-			continue
-		index = index + 1
-		sequence = fasta.seq
-		#sequence = str(sequence).replace('*', 'N')	# substitute for the strange * characters in some NOVOPlasty outputs (?)
-		#sequence = re.sub('\d', 'N', str(sequence))	# substitute any digits in some NOVOPlasty outputs (?)
-		if len(sequence) > 0:
-			seqs.append(sequence)
+fastas = []
+with open(con, 'r') as fasta_file, open('merged.fasta', 'w') as out_file:
+	for fasta in SeqIO.parse(fasta_file, 'fasta'):
+		#sequence = str(fasta.seq).replace('*', 'N')	# substitute for the strange * characters in some NOVOPlasty outputs (?)
+		#sequence = re.sub('\d', 'N', str(fasta.seq))	# substitute any digits in some NOVOPlasty outputs (?)
+		#fasta.seq = Seq(sequence)
+		if len(fasta.seq) > 0:
+			fastas.append(fasta)
 		else:
 			continue
 
-	concatenated = fasta1.seq
-	for sequence in seqs:
-		concatenated = concatenated + sequence
+	concatenated = fastas[0]
 
-	fasta1.seq = concatenated
-	fasta1.description = 'merged ' + fasta1.description
-	fasta1.id = 'merged'
-	fasta1.name = 'merged'
+	if spacer_present:
+		concatenated.seq = concatenated.seq + spacer + spacer.join([x.seq for x in fastas[1:]])
+	else:
+		for fasta in fastas[1:]:
+			concatenated.seq = concatenated.seq + fasta.seq
 
-	SeqIO.write(fasta1, out_file, 'fasta')
+	concatenated.description = 'merged ' + concatenated.description
+	concatenated.id = 'merged'
+	concatenated.name = 'merged'
+
+	SeqIO.write(concatenated, out_file, 'fasta')
