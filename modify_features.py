@@ -71,60 +71,59 @@ start = 0
 add_product = False
 with open(feat_tbl, 'r') as feat_file, open('features_edited.tbl', 'w') as out_file:
 	for index, line in enumerate(feat_file):
-		if index == 0:		# first line
+		elements = line.rstrip().split('\t')
+		if elements[0].startswith('>'):			# a new contig
+			lines.append(line)
+		elif len(elements) == 3:		# hit the next feature
+			if to_remove:
+				for num in range(start, index):
+					remove_lines.append(num)
+				to_remove = False
+			start = index
+			lines.append(line)
+		elif len(elements) >= 4:			# properties of a feature
+			if elements[3] == 'gene':
+				if elements[4].lower() in remove_list:		# if this feature is supposed to be removed
+					to_remove = True
+				if 'fragment' in elements[4].lower():		# if this feature is a fragment (no product)
+					print('Fragment: ' + elements[4].lower())
+					to_remove = True
+			lines.append(line)
+		elif len(elements) == 2:			# coordinates
 			lines.append(line)
 		else:
-			elements = line.rstrip().split('\t')
-			if len(elements) == 3:		# hit the next feature
-				if to_remove:
-					for num in range(start, index):
-						remove_lines.append(num)
-					to_remove = False
-				start = index
-				lines.append(line)
-			elif len(elements) >= 4:			# properties of a feature
-				if elements[3] == 'gene':
-					if elements[4].lower() in remove_list:		# if this feature is supposed to be removed
-						to_remove = True
-					if 'fragment' in elements[4].lower():		# if this feature is a fragment (no product)
-						to_remove = True
-				lines.append(line)
-			elif len(elements) == 2:			# coordinates
-				lines.append(line)
-			else:
-				sys.exit('Problematic line! See ' + str(index+1))
+			sys.exit('Problematic line! See ' + str(index+1))
 
 	if len(remove_lines) > 0:
 		print('Removing ' + str(len(remove_lines)) + ' lines that are specified or contain "fragment" in their name')
 		for line in sorted(remove_lines, reverse = True):
 			del lines[line]
 
-	for index, line in enumerate(lines):
-		if index == 0:		# first line
+	for line in lines:
+		elements = line.rstrip().split('\t')
+		if elements[0].startswith('>'):		# a new contig
 			out_file.write(line)
-		else:
-			elements = line.rstrip().split('\t')
-			if len(elements) == 3:				# start of a feature
-				if any([elements[2] == 'tRNA', elements[2] == 'rRNA']):
-					add_product = True
-					out_file.write(line)
-				else:
-					add_product = False
-					out_file.write(line)
-			elif len(elements) >=4:				# properties of a feature
-				if elements[3] == 'gene':
-					if add_product:
-						gene = elements[4].lower()
-						product = key_dict[gene].split('\t')[2]
-						out_file.write(line)
-						out_file.write('\t\t\tproduct\t' + product + '\n')
-					else:
-						out_file.write(line)
-				else:
-					out_file.write(line)
-			elif len(elements) == 2:
+		elif len(elements) == 3:				# start of a feature
+			if any([elements[2] == 'tRNA', elements[2] == 'rRNA']):
+				add_product = True
 				out_file.write(line)
 			else:
-					sys.exit('Data problem!!')
+				add_product = False
+				out_file.write(line)
+		elif len(elements) >=4:				# properties of a feature
+			if elements[3] == 'gene':
+				if add_product:
+					gene = elements[4].lower()
+					product = key_dict[gene].split('\t')[2]
+					out_file.write(line)
+					out_file.write('\t\t\tproduct\t' + product + '\n')
+				else:
+					out_file.write(line)
+			else:
+				out_file.write(line)
+		elif len(elements) == 2:
+			out_file.write(line)
+		else:
+				sys.exit('Data problem!!')
 
 
