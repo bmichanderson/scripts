@@ -2,6 +2,7 @@
 ##########################
 # Author: B. Anderson
 # Date: 11 June 2020
+# Modified: Mar 2021
 # Description: using a gene list and database, search for hits in specified fasta files
 ##########################
 
@@ -135,8 +136,9 @@ threads="$(grep -c ^processor /proc/cpuinfo)"
 work_dir="$(pwd)"
 
 
-# get full path for the regions input file
+# get full path for the regions input file and the directory
 regions_path="$(readlink -f $regions_list)"
+dir_path="$(readlink -f $directory)"
 
 
 # run searches for each fasta file
@@ -165,7 +167,7 @@ for fasta_file in "$@"; do
 
 			echo "#### Blasting for $region"
 
-			blastn -task blastn -query "$fasta_path" -db "$directory"/"$region"/"$region"_nucldb -outfmt "6 std qseq sseq qlen slen stitle" -max_target_seqs "$max_targs" -num_threads "$threads" > "$region"_blast.tab
+			blastn -task blastn -query "$fasta_path" -db "$dir_path"/"$region"/"$region"_nucldb -outfmt "6 std qseq sseq qlen slen stitle" -max_target_seqs "$max_targs" -num_threads "$threads" > "$region"_blast.tab
 
 			"$parse_script" -q "$fasta_path" -p "$pid" -l "$len" "$region"_blast.tab
 
@@ -180,7 +182,7 @@ for fasta_file in "$@"; do
 
 			echo "#### Blasting for $region"
 
-			blastx -query "$fasta_path" -db "$directory"/"$region"/"$region"_protdb -outfmt "6 std qseq sseq qlen slen stitle" -max_target_seqs "$max_targs" -num_threads "$threads" > "$region"_blast.tab
+			blastx -query "$fasta_path" -db "$dir_path"/"$region"/"$region"_protdb -outfmt "6 std qseq sseq qlen slen stitle" -max_target_seqs "$max_targs" -num_threads "$threads" > "$region"_blast.tab
 
 			"$parse_script" -q "$fasta_path" -p "$pid" -l "$len" -t x "$region"_blast.tab
 
