@@ -3,7 +3,7 @@
 #################
 # Author: B. Anderson
 # Date: Nov 2020
-# Modified:
+# Modified: Mar 2021
 # Description: Reform a chloroplast fasta assembly (single circle) for consistent start position and orientation of LSC and SSC
 #################
 
@@ -57,7 +57,8 @@ makeblastdb -in temp_cp2.fasta -out db2 -dbtype nucl -logfile temp.log
 blastn -query temp_cp2.fasta -db db2 -outfmt 6 | head > temp_blast2.out
 
 ir2len=$(awk ' NR==2 {print $4} ' temp_blast2.out)
-if [ $ir2len -gt $irlen ]; then echo "found longer IR" && mv temp_cp2.fasta temp_cp.fasta && mv temp_blast2.out temp_blast.out; fi
+ir_identity=$(awk ' NR==2 {print $3} ' temp_blast2.out)
+if [ $ir2len -gt $irlen ]; then if [ ${ir_identity%.*} -eq 100 ]; then echo "found longer IR" && mv temp_cp2.fasta temp_cp.fasta && mv temp_blast2.out temp_blast.out; fi; fi
 rm db*
 
 
@@ -91,7 +92,7 @@ blastn -query "$ref1" -db db -outfmt 6 > temp_blast_ref1.out
 ref1_start=$(awk ' NR==1 {print $9} ' temp_blast_ref1.out)
 ref1_end=$(awk ' NR==1 {print $10} ' temp_blast_ref1.out)
 if [ $ref1_end -gt $ref1_start ]; then "$reform_script" LSC.fasta 1 yes && mv new_contig.fasta LSC.fasta; \
-elif [ $ref1_end -gt 1000 ]; then echo "Uh oh! Script isn't working as intended!"; fi
+elif [ $ref1_end -gt 1000 ]; then echo "Reference hit >1000 bp from start; take care if that is not expected!"; fi
 
 
 ## Step 3: extract the SSC; check orientation of ref2 in SSC; modify SSC as needed
