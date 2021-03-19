@@ -3,7 +3,7 @@
 ##########################
 # Author: B. Anderson
 # Date: 12 June 2020
-# Modified: Oct 2020
+# Modified: Oct 2020, Mar 2021
 # Description: extract a sequence from a fasta given start and end coordinates (1-based and end-inclusive)
 ##########################
 
@@ -49,10 +49,18 @@ with open(fasta_file, 'r') as f_file, open('extract.fasta', 'w') as out_file:
 		sys.exit('Coordinates out of range')
 
 	if start < end:		# forward strand
-		out_file.write('>%s from %s\n%s\n' % ('sequence_' + coords, fasta.id, fasta.seq[(start - 1): end]))
+		fasta.seq = fasta.seq[(start - 1): end]
+		fasta.id = 'sequence_' + coords
+		fasta.description = 'sequence_' + coords + ' from ' + fasta.description
+		SeqIO.write(fasta, out_file, 'fasta')
+#		out_file.write('>%s from %s\n%s\n' % ('sequence_' + coords, fasta.id, fasta.seq[(start - 1): end]))
 
 	elif start > end:	# reverse strand
-		out_file.write('>%s from %s\n%s\n' % ('sequence_' + coords, fasta.id, fasta.seq[end-1: start].reverse_complement()))
+		fasta.seq = fasta.seq[end-1: start].reverse_complement()
+		fasta.id = 'sequence_' + coords
+		fasta.description = 'sequence_' + coords + ' from ' + fasta.description
+		SeqIO.write(fasta, out_file, 'fasta')
+#		out_file.write('>%s from %s\n%s\n' % ('sequence_' + coords, fasta.id, fasta.seq[end-1: start].reverse_complement()))
 
 	else:			# if they are equal
 		sys.exit('Please specify different start and end coordinates')
