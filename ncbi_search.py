@@ -3,7 +3,7 @@
 ##########################
 # Author: B. Anderson
 # Date: 25 Feb 2020
-# Modified: Oct 2020, Feb 2021
+# Modified: Oct 2020, Feb 2021, Mar 2021 (deal with UNVERIFIED)
 # Description: search NCBI Genbank databases and report a summary for later use in downloading
 ##########################
 
@@ -89,8 +89,12 @@ else:
 
 		for index, record in enumerate(records):
 			title = record['Title']
-			genus = title.split()[0]
-			specific_ep = title.split()[1]
+			if title.split()[0] == 'UNVERIFIED:':
+				genus = title.split()[1]
+				specific_ep = title.split()[2]
+			else:
+				genus = title.split()[0]
+				specific_ep = title.split()[1]
 			length = str(record['Length'])
 			tax_id = record['TaxId']
 
