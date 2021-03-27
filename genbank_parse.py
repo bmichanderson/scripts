@@ -20,7 +20,7 @@ parser = argparse.ArgumentParser(description = 'A script to extract specified re
 parser.add_argument('gb_file', type=str, help='A genbank/multigenbank file to parse')
 parser.add_argument('-f', type=str, dest='regions_file', help='File with regions for extracting (lower case, one per line)')
 parser.add_argument('-t', type=str, dest='type', help='The type of extract output: nucl [default] or prot (for use with the -f option)')
-parser.add_argument('-l', type=str, dest='list', help='Specify a specific type of feature to list: CDS, rRNA, or tRNA')
+parser.add_argument('-l', type=str, dest='list', help='Specify a specific type of feature to list: CDS, rRNA, tRNA or gene')
 parser.add_argument('-g', type=str, dest='gene', help='Specify the name of a gene to extract the sequence(s)')
 parser.add_argument('-c', type=str, dest='coords', help='Specify the coordinates of a sequence to extract: start..end, with start > end for compliment')
 
@@ -49,6 +49,8 @@ if list_type:
 		feature_type = 'rRNA'
 	elif list_type.lower() == 'trna':
 		feature_type = 'tRNA'
+	elif list_type.lower() == 'gene':
+		feature_type = 'gene'
 	else:
 		sys.exit('Specify a feature type to list as CDS, rRNA or tRNA')
 
@@ -60,6 +62,8 @@ if list_type:
 				if feature.type == feature_type:
 					if 'gene' in feature.qualifiers:
 						if 'pseudo' in feature.qualifiers:
+							print_list.append(''.join(feature.qualifiers['gene'][0].lower().split()) + '-pseudo')
+						elif 'pseudogene' in feature.qualifiers:
 							print_list.append(''.join(feature.qualifiers['gene'][0].lower().split()) + '-pseudo')
 						else:
 							print_list.append(''.join(feature.qualifiers['gene'][0].lower().split()))	# for removing spaces
@@ -114,6 +118,16 @@ if list_type:
 							mod_name = mod_name + '-cp'
 
 					print_list.append(mod_name)
+		elif feature_type == 'gene':
+			for feature in gbk.features:
+				if feature.type == feature_type:
+					if 'gene' in feature.qualifiers:
+						if 'pseudo' in feature.qualifiers:
+							print_list.append(''.join(feature.qualifiers['gene'][0].lower().split()) + '-pseudo')
+						elif 'pseudogene' in feature.qualifiers:
+							print_list.append(''.join(feature.qualifiers['gene'][0].lower().split()) + '-pseudo')
+						else:
+							print_list.append(''.join(feature.qualifiers['gene'][0].lower().split()))	# for removing spaces
 
 	for gene in sorted(print_list):
 		print(gene)
