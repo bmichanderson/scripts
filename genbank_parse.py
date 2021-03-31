@@ -3,6 +3,7 @@
 ##########################
 # Author: B. Anderson
 # Date: 18 May 2020
+# Modified: Mar 2021
 # Description: Parse a genbank file to extract information
 ##########################
 
@@ -23,6 +24,8 @@ parser.add_argument('-t', type=str, dest='type', help='The type of extract outpu
 parser.add_argument('-l', type=str, dest='list', help='Specify a specific type of feature to list: CDS, rRNA, tRNA or gene')
 parser.add_argument('-g', type=str, dest='gene', help='Specify the name of a gene to extract the sequence(s)')
 parser.add_argument('-c', type=str, dest='coords', help='Specify the coordinates of a sequence to extract: start..end, with start > end for compliment')
+parser.add_argument('-i', action='store_true', help='Flag to extract all intergenic regions and introns')
+parser.add_argument('-m', type=int, dest='min', help='Specify minimum length of intergenic region to keep (default = 20)')
 
 
 # parse the command line
@@ -38,6 +41,11 @@ type_extract = args.type
 list_type = args.list
 gene_name = args.gene
 coords = args.coords
+intergenic = args.i
+min_inter = args.min
+
+if not min_inter:
+	min_inter = 20
 
 
 # if -l is present, run the listing and exit
@@ -52,7 +60,7 @@ if list_type:
 	elif list_type.lower() == 'gene':
 		feature_type = 'gene'
 	else:
-		sys.exit('Specify a feature type to list as CDS, rRNA or tRNA')
+		sys.exit('Specify a feature type to list as CDS, rRNA, tRNA or gene')
 
 	print_list = []
 	gbks = SeqIO.parse(gb_file, 'genbank')
@@ -69,7 +77,6 @@ if list_type:
 							print_list.append(''.join(feature.qualifiers['gene'][0].lower().split()))	# for removing spaces
 					elif 'product' in feature.qualifiers:
 						print_list.append(''.join(feature.qualifiers['product'][0].lower().split()))
-		# tRNA
 		elif feature_type == 'tRNA':
 			for feature in gbk.features:
 				if feature.type == feature_type:
@@ -331,8 +338,61 @@ if regions_file:
 								seq = part.extract(gbk.seq)		# for the first part, to initiate a sequence object
 
 				out_file.write(">%s from %s\n%s\n" % (name, 'multi-record ' + gbks[0].annotations['organism'], seq))
-
-else:
+elif not intergenic:
 	parser.print_help(sys.stderr)
 	sys.exit(1)
 
+
+# if the intergenic flag is set, proceed to extract all intergenic regions and introns
+
+if intergenic:
+	gbks = []
+	genbanks = SeqIO.parse(gb_file, 'genbank')
+	for gb in genbanks:
+		gbks.append(gb)
+	with open(gbks[0].annotations['organism'].split()[0] + '_intergenic_extract.fasta', 'w') as out_file:
+		for gbk in gbks:
+			gene_locs = []
+			for feature in gbk.features:
+			# introns
+				if feature.type == 'intron':
+					out_file.write(">%s from %s\n%s\n" % (feature.qualifiers['gene'][0] + '_intron',
+										gbk.name + ' ' + gbk.annotations['organism'],
+										feature.location.extract(gbk).seq))
+					# note that this will output the entire intron, even if there is a CDS inside, e.g. matK
+			# intergenic
+				elif feature.type == 'gene':
+					if 'trans_splicing' in feature.qualifiers:
+						index = 1
+						for piece in feature.location.parts:
+							gene_locs.append([feature.qualifiers['gene'][0] + '_' + str(index), int(piece.start),
+									 int(piece.end)])
+							index = index + 1
+					else:
+						gene_locs.append([feature.qualifiers['gene'][0], int(feature.location.start),
+								 int(feature.location.end)])
+				else:
+					continue
+
+			# remove any duplicates
+			check_list = []
+			for gene in gene_locs:
+				if gene in check_list:
+					continue
+				else:
+					check_list.append(gene)
+
+			# sort by start location and output the intergenic sequences
+			gene_locs = sorted(check_list, key = lambda k: k[1])
+			previous_gene = gene_locs[0][0]
+			previous_end = gene_locs[0][2]
+			for gene in gene_locs[1:]:
+				this_gene = gene[0]
+				this_start = gene[1]
+				if (this_start - previous_end > min_inter):
+					out_file.write(">%s from %s\n%s\n" % (previous_gene + '--' + this_gene,
+										gbk.name + ' ' + gbk.annotations['organism'],
+										gbk.seq[previous_end:this_start]))
+				if gene[2] > previous_end:
+					previous_gene = gene[0]
+					previous_end = gene[2]
