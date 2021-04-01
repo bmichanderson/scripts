@@ -3,7 +3,7 @@
 ##########################
 # Author: B. Anderson
 # Date: 25 Feb 2020
-# Modified: Oct 2020, Feb 2021, Mar 2021 (deal with UNVERIFIED)
+# Modified: Oct 2020, Feb 2021, Mar 2021 (deal with UNVERIFIED), Apr 2021 streamlined and taxonomy search not an option (auto)
 # Description: search NCBI Genbank databases and report a summary for later use in downloading
 ##########################
 
@@ -20,7 +20,7 @@ parser = argparse.ArgumentParser(description = 'A script to search Genbank and p
 parser.add_argument('search_str', type=str, help='The search string to submit to NCBI; put in quotations: \" \"')
 parser.add_argument('-f', dest='full', action='store_true', help='Run the full summary and output to file [default: do not]')
 parser.add_argument('-m', type=int, dest='max_recs', help='Specify the maximum number of records to return [default 50]')
-parser.add_argument('-t', dest='tax', action='store_true', help='Retrieve higher taxonomic info for the records on a full summary [default: do not]')
+#parser.add_argument('-t', dest='tax', action='store_true', help='Retrieve higher taxonomic info for the records on a full summary [default: do not]')
 parser.set_defaults(full=False)
 parser.set_defaults(tax=False)
 
@@ -35,15 +35,15 @@ args = parser.parse_args()
 search_str = args.search_str
 full = args.full
 max_recs = args.max_recs
-tax = args.tax
+#tax = args.tax
 
 if not max_recs:
 	max_recs = 50
 
 if full:
 	print('Running a full summary and outputting result to search_summary.tab')
-elif tax:
-	sys.exit('The taxonomy -t option only works with a full summary -f option')
+#elif tax:
+#	sys.exit('The taxonomy -t option only works with a full summary -f option')
 
 
 # Perform the search and retrieve accession numbers
@@ -68,8 +68,9 @@ if not full:
 		print(acc_num)
 else:
 	rec_list = []
-	genera_list = []
-	genera_search = []
+	new_rec_list = []
+#	genera_list = []
+#	genera_search = []
 	count = len(acc_list)
 
 	if count > 50:
@@ -77,6 +78,7 @@ else:
 	else:
 		batch_size = count
 
+	# first, capture all the record info
 	for start in range(0, count, batch_size):
 		end = min(count, start + batch_size)
 		print('Searching Genbank accession details for ' + str(start + 1) + ' to ' + str(end) + ' of ' + str(count))
@@ -89,62 +91,95 @@ else:
 
 		for index, record in enumerate(records):
 			title = record['Title']
-			if title.split()[0] == 'UNVERIFIED:':
-				genus = title.split()[1]
-				specific_ep = title.split()[2]
-			else:
-				genus = title.split()[0]
-				specific_ep = title.split()[1]
+#			if title.split()[0] == 'UNVERIFIED:':
+#				genus = title.split()[1]
+#				specific_ep = title.split()[2]
+#			else:
+#				genus = title.split()[0]
+#				specific_ep = title.split()[1]
 			length = str(record['Length'])
 			tax_id = record['TaxId']
 
-			if genus not in genera_list:
-				genera_list.append(genus)
-				genera_search.append((genus, tax_id))
+#			if genus not in genera_list:
+#				genera_list.append(genus)
+#				genera_search.append((genus, tax_id))
 
-			rec_list.append((genus, specific_ep, sub_acc_list[index], length, title))
+#			rec_list.append((genus, specific_ep, sub_acc_list[index], length, title))
+			rec_list.append((sub_acc_list[index], tax_id, length, title))
+
+
+	# now, grab the taxon info
+	for start in range(0, count, batch_size):
+		end = min(count, start + batch_size)
+		print('Searching Genbank taxonomy details for ' + str(start + 1) + ' to ' + str(end) + ' of ' + str(count))
+
+		sub_rec_list = rec_list[start: end]
+		id_list = ','.join([str(x[1]) for x in sub_rec_list])
+		handle = Entrez.efetch(db = 'Taxonomy', id = id_list)
+		records = Entrez.read(handle)
+		handle.close()
+
+		for index, record in enumerate(records):
+			name = record['ScientificName']
+			genus = name.split()[0]
+			specific_ep = name.split()[1]
+			for level in record['LineageEx']:
+				if level['Rank'] == 'order':
+					order = level['ScientificName']
+				elif level['Rank'] == 'family':
+					family = level['ScientificName']
+				else:
+					continue
+			new_rec_list.append([order, family, genus, specific_ep, sub_rec_list[index][0],
+						sub_rec_list[index][2], sub_rec_list[index][3]])
+
 
 	# Use the taxonomy database to extract order and family for each genus, if requested
-	if tax:
-		genera_dic = {}
-		count = len(genera_search)
-
-		if count > 50:
-			batch_size = 50
-		else:
-			batch_size = count
-
-		for start in range(0, count, batch_size):
-			end = min(count, start + batch_size)
-			print('Searching Genbank taxonomy details for ' + str(start + 1) + ' to ' + str(end) + ' of ' + str(count) + ' genera')
-
-			sub_gen_list = genera_search[start: end]
-			id_list = ','.join([str(x[1]) for x in sub_gen_list])
-			handle = Entrez.efetch(db = 'Taxonomy', id = id_list)
-			records = Entrez.read(handle)
-			handle.close()
-
-			for index, record in enumerate(records):
-				for level in record['LineageEx']:
-					if level['Rank'] == 'order':
-						order = level['ScientificName']
-					elif level['Rank'] == 'family':
-						family = level['ScientificName']
-					else:
-						continue
-				genera_dic[sub_gen_list[index][0]] = (order, family)
+#	if tax:
+#		genera_dic = {}
+#		count = len(genera_search)
+#
+#		if count > 50:
+#			batch_size = 50
+#		else:
+#			batch_size = count
+#
+#		for start in range(0, count, batch_size):
+#			end = min(count, start + batch_size)
+#			print('Searching Genbank taxonomy details for ' + str(start + 1) + ' to ' + str(end) + ' of ' + str(count) + ' genera')
+#
+#			sub_gen_list = genera_search[start: end]
+#			id_list = ','.join([str(x[1]) for x in sub_gen_list])
+#			handle = Entrez.efetch(db = 'Taxonomy', id = id_list)
+#			records = Entrez.read(handle)
+#			handle.close()
+#
+#			for index, record in enumerate(records):
+#				for level in record['LineageEx']:
+#					if level['Rank'] == 'order':
+#						order = level['ScientificName']
+#					elif level['Rank'] == 'family':
+#						family = level['ScientificName']
+#					else:
+#						continue
+#				genera_dic[sub_gen_list[index][0]] = (order, family)
 
 	# Output a summary
 	out_list = []
-	if tax:
-		for rec in rec_list:
-			out_list.append('\t'.join(genera_dic[rec[0]]) + '\t' + '\t'.join(rec))
-	else:
-		for rec in rec_list:
-			out_list.append('\t'.join(rec))
+	for rec in new_rec_list:
+		out_list.append('\t'.join(rec))
+
+#	if tax:
+#		for rec in rec_list:
+#			out_list.append('\t'.join(genera_dic[rec[0]]) + '\t' + '\t'.join(rec))
+#	else:
+#		for rec in rec_list:
+#			out_list.append('\t'.join(rec))
 
 	with open('search_summary.tab', 'w') as outfile:
-		if tax:
-			outfile.write('\t'.join(('order', 'family', 'genus', 'specific_ep', 'accession', 'length', 'full_title')) + '\n' + '\n'.join(out_list) + '\n')
-		else:
-			outfile.write('\t'.join(('genus', 'specific_ep', 'accession', 'length', 'full_title')) + '\n' + '\n'.join(out_list) + '\n')
+			outfile.write('\t'.join(('order', 'family', 'genus', 'specific_ep', 'accession', 'length', 'full_title')) + '\n'
+					 + '\n'.join(out_list) + '\n')
+#		if tax:
+#			outfile.write('\t'.join(('order', 'family', 'genus', 'specific_ep', 'accession', 'length', 'full_title')) + '\n' + '\n'.join(out_list) + '\n')
+#		else:
+#			outfile.write('\t'.join(('genus', 'specific_ep', 'accession', 'length', 'full_title')) + '\n' + '\n'.join(out_list) + '\n')
