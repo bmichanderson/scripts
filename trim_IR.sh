@@ -3,6 +3,7 @@
 #####
 # Author: B. Anderson
 # Date: March 2021
+# Modified: Apr 2021 (to make more consistent with updated reform_cp.sh)
 # Description: using an input fasta file, determine a likely IR location at the end of the file and output a fasta with a single IR
 #####
 
@@ -40,16 +41,17 @@ makeblastdb -in "$chloroplast" -out db -dbtype nucl -logfile temp.log && blastn 
 
 # Evaluate the blast results to find a putative IR
 length=$(head -n 1 temp_blast.out | cut -f 13)
-second_hit=$(awk ' NR==2 {print $4} ' temp_blast.out)
-third_hit=$(awk ' NR==3 {print $4} ' temp_blast.out)
-fourth_hit=$(awk ' NR==4 {print $4} ' temp_blast.out)
-fifth_hit=$(awk ' NR==5 {print $4} ' temp_blast.out)
+
+hit2=$(awk ' NR==2 {print $4} ' temp_blast.out)
+hit3=$(awk ' NR==3 {print $4} ' temp_blast.out)
+hit4=$(awk ' NR==4 {print $4} ' temp_blast.out)
+hit5=$(awk ' NR==5 {print $4} ' temp_blast.out)
 
 IR_end=0
 
-if [ $second_hit -ne $third_hit ]; then
-	if [ $third_hit -ne $fourth_hit ]; then
-		if [ $fourth_hit -ne $fifth_hit ]; then
+if [ $(echo "$hit3" - "$hit2" | bc | sed 's/-//') -gt 10 ]; then
+	if [ $(echo "$hit4" - "$hit3" | bc | sed 's/-//') -gt 10 ]; then
+		if [ $(echo "$hit5" - "$hit4" | bc | sed 's/-//') -gt 10 ]; then
 			echo "No reciprocal hits in first five blast hits; not processing further"
 		else
 			IR_start=$(awk ' NR==4 {print $7} ' temp_blast.out)
@@ -66,12 +68,12 @@ fi
 
 rm temp_blast.out temp.log temp.perf db.nhr db.nsq db.nin
 
-if [ $IR_end -gt 0 ]; then
-	if [ $IR_end -ne $length ]; then
+if [ "$IR_end" -gt 0 ]; then
+	if [ "$IR_end" -ne "$length" ]; then
 		echo "Putative IR end point not at the end of the chloroplast; not processing further"
 	else
 		echo "Removing putative IR from end of chloroplast. Length removed = $(echo $IR_end - $IR_start | bc)"
-		coord=$(echo $IR_start - 1 | bc)
+		coord=$(echo "$IR_start" - 1 | bc)
 		"$extract_script" -c 1.."$coord" "$chloroplast"
 		cat <(head -n 1 "$chloroplast") <(tail -n +2 extract.fasta) > new_cp.fasta
 		rm extract.fasta
