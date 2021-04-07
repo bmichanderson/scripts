@@ -356,7 +356,8 @@ if intergenic:
 			for feature in gbk.features:
 			# introns
 				if feature.type == 'intron':
-					out_file.write(">%s from %s\n%s\n" % (feature.qualifiers['gene'][0] + '_intron',
+					out_file.write(">%s from %s\n%s\n" % (feature.qualifiers['gene'][0] + '_intron_' +
+										feature.qualifiers['number'][0],
 										gbk.name + ' ' + gbk.annotations['organism'],
 										feature.location.extract(gbk).seq))
 					# note that this will output the entire intron, even if there is a CDS inside, e.g. matK

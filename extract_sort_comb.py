@@ -3,68 +3,64 @@
 ##########################
 # Author: B. Anderson
 # Date: 10 Mar 2020
-# Modified: Oct 2020
+# Modified: Oct 2020, April 2021 (updated argument handling and made more flexible to name of gene with _ in it)
 # Description: take multifasta files as input, extract genes, sort based on name, combine all similar genes into single files as output
 ##########################
 
 import sys			# allows access to command line arguments
 from Bio import SeqIO		# SeqIO is part of Biopython for parsing files
+import argparse
 
-def help():
-	print('A script to extract specified regions and combine them across multifasta files extracted from genbank files.')
-	print('The extracted regions are output as single multifasta files in the current directory.')
-	print('It is assumed that no species are duplicated (one accession number per species).')
-	print('')
-	print('Usage: ' + str(sys.argv[0]) + ' options(-... -...) file1 file2 ...')
-	print('')
-	print('Options:')
-	print('	-f,	File (required) with master list of regions for extracting (lower case), one per line')
-	print('')
-	print('	-d,	Dictionary (optional) of alternative region names for regions in the first file')
-	print('		This should be in the form: "alternative_name	master_name", one per line')
-
-options = ['-f', '-d']
-opt_valdic = {}
+# instantiate the parser
+parser = argparse.ArgumentParser(description = 'A script to extract specified regions and combine them across multifasta files ' +
+						'extracted from genbank files. The extracted regions are output as single multifasta ' +
+						'files in the current directory. It is assumed that no species are duplicated ' +
+						'(one accession number per species).')
 
 
-# print help if the script is called without args
-if len(sys.argv[1:]) == 0:
-	sys.exit(help())
+# add arguments to parse
+parser.add_argument('extract_files', type=str, nargs='+', help='The multifasta files to extract from')
+parser.add_argument('-f', type=str, dest='regions_file', help='File (required) with regions for extracting (one per line)')
+parser.add_argument('-d', type=str, dest='dict_file', help='Dictionary (optional) of alternative region names in the form: ' +
+								'"alt_name	region_name", one per line')
 
 
-# process command line
-for index, arg in enumerate(sys.argv[1:]):
-	if arg[0] == '-': 	# if an option
-		if arg in options:
-			if sys.argv[1:][index + 1][0] == '-':
-				sys.exit('No argument provided for ' + str(arg))
-			opt_valdic[arg] = sys.argv[1:][index + 1]
-		else:
-			sys.exit('The argument ' + str(arg) + ' is not a valid option')
+# parse the command line
+if len(sys.argv[1:]) == 0:		# if there are no arguments
+	parser.print_help(sys.stderr)
+	sys.exit(1)
+
+args = parser.parse_args()
+
+extract_files = args.extract_files
+regions_file = args.regions_file
+dict_file = args.dict_file
 
 
 # capture list of files
 file_list = []
-for arg in sys.argv[1:]:
-	if arg not in opt_valdic:
-		file_list.append(arg)
+for file in extract_files:
+	file_list.append(file)
 
 
 # read in a list of regions for keeping
-if '-f' in opt_valdic:
+if regions_file:
 	gene_list = []
-	with open(opt_valdic['-f'], 'r') as gl:
+	with open(regions_file, 'r') as gl:
 		for line in gl:
-			gene_list.append(line.rstrip())
+			gene_list.append(line.rstrip().lower())
+else:
+	parser.print_help(sys.stderr)
+	sys.exit(1)
 
 
 # read in a dictionary of region name alternatives
 gene_name_dict = {}
-if '-d' in opt_valdic:
-	with open(opt_valdic['-d'], 'r') as dl:
+if dict_file:
+	with open(dict_file, 'r') as dl:
 		for line in dl:
-			entry = str(line.rstrip().split()[0])
-			equiv = str(line.rstrip().split()[1])
+			entry = str(line.rstrip().split()[0].lower())
+			equiv = str(line.rstrip().split()[1].lower())
 			gene_name_dict[entry] = equiv
 
 
@@ -77,12 +73,15 @@ if len(gene_list) > 0:
 			fastas = SeqIO.parse(mf, 'fasta')
 			for fasta in fastas:
 				first_element = fasta.description.split()[0].lower()
-				gene_element = first_element.split('_')[0]		# in case this is a _part gene listing
+				if '_part' in first_element:
+					gene_element = first_element.split('_part')[0]		# in case this is a _part gene listing
+				else:
+					gene_element = first_element
 				gene_name = gene_name_dict.get(gene_element, gene_element)	# will simply return the gene_name if no dictionary hit
 				if gene_name in gene_list:
 					cap_list.append((gene_name, fasta))
 else:
-	sys.exit('Specify file with list of regions using the -f option')
+	sys.exit('There is something wrong with the regions file you specified')
 
 
 # combine all the regions into single files, removing exact duplicates and sorting
@@ -101,6 +100,7 @@ for gene in gene_list:
 	remove_indices = []
 
 	for num, hit in enumerate(hits):
+		# assuming naming of regions is from genbank_parse.py with >gene from accession Genus specific_ep
 		org = hit.description.split()[3] + '_' + hit.description.split()[4]
 		if org in org_list:
 			org_indices = [i for i in range(len(org_list)) if org_list[i] == org]
