@@ -3,7 +3,7 @@
 ##########################
 # Author: B. Anderson
 # Date: 3 Apr 2020
-# Modified: Oct 2020
+# Modified: Oct 2020, Apr 2021 (for pseudo and notes)
 # Description: generate a Sequin format table of annotations for use with a .fsa file and tbl2asn then asn2gb to ultimately create a GenBank flatfile
 ##########################
 
@@ -45,117 +45,105 @@ with open(sys.argv[2], 'r') as key_file:
 
 # Read in the locations file and output the Sequin format table
 with open(sys.argv[1], 'r') as loc_file, open('features.tbl', 'w') as out_file:
-
 	out_file.write('>Features SeqID\n')		# write header
-
 	locus_index = 1
-
 	for line_no, line in enumerate(loc_file, start=1):
-
 		if line_no == 1:	# first line is the header row
 			continue
-
-		old_entries = line.rstrip().split('\t')
-		entries = [entry.rstrip() for entry in old_entries]		# to get rid of whitespace
+		entries = [entry.rstrip() for entry in line.rstrip().split('\t')]		# to get rid of whitespace
+		start1 = entries[2]
+		start2 = entries[3]
 		gene = entries[0].lower()
-
+		gene_name = key_dict[gene].split('\t')[0]
+		gene_type = key_dict[gene].split('\t')[1]
+		gene_prod = key_dict[gene].split('\t')[2]
+		is_pseudo = False
 		pieces = []
-
+		note_entry = ''
+		note_list = []
 		if len(entries) > 4:			# i.e. if the gene/feature is in more than one piece
 			loc_iter = iter(entries[4:])
 			for loc in loc_iter:
 				pieces.append((loc, next(loc_iter)))
-
-		note_entry = ''
-
 		if len(str(entries[1])) > 0:		# parse notes if the second entry has text
-
-			notes = str(entries[1]).split(';')
-
+			notes = [note.lstrip().rstrip().lower() for note in str(entries[1]).split(';')]
+			if 'pseudo' in notes:
+				is_pseudo = True
+				note_entry = '\t\t\tpseudo\n'
+				note_list.append(gene_prod)
 			for note in notes:
-
-				note = note.lstrip().rstrip().lower()
-
 				if 'pseudo' in note:
-					note_entry = note_entry + '\t\t\tpseudo\n'
-
+					continue
 				elif 'trans-splicing' in note:
-					note_entry = note_entry + '\t\t\texception\ttrans-splicing\n'
-
+					if is_pseudo:
+						continue
+					else:
+						note_entry = note_entry + '\t\t\ttrans_splicing\n'
 				elif 'codon_start' in note:
-					note_entry = note_entry + '\t\t\tcodon_start\t' + note.split(' ')[1] + '\n'
-
+					if is_pseudo:
+						continue
+					else:
+						note_entry = note_entry + '\t\t\tcodon_start\t' + note.split(' ')[1] + '\n'
 				else:
-					note_entry = note_entry + '\t\t\tnote\t' + note + '\n'
-
-
-		start1 = entries[2]
-		start2 = entries[3]
-
-		gene_name = key_dict[gene].split('\t')[0]
-		gene_type = key_dict[gene].split('\t')[1]
-		gene_prod = key_dict[gene].split('\t')[2]
-
-
+					note_list.append(note)
+			if len(note_list) > 0:
+				note_entry = note_entry + '\t\t\tnote\t' + ('; ').join(note_list) + '\n'
 		if not any((gene_type == 'CDS', gene_type == 'rRNA', gene_type == 'tRNA')):
 			 sys.exit('Incorrectly specified gene type')
-
-
-		if gene_type == 'CDS':			# prepend a protein product identifier when annotating a CDS
-
-			note_entry = '\t\t\tprotein_id\tgnl|DBNAME|LOCUSTAG_' + format(locus_index, '03d') + '\n' + note_entry
-
-
+#		if gene_type == 'CDS':			# prepend a protein product identifier when annotating a CDS
+#			if not is_pseudo:
+#				note_entry = '\t\t\tprotein_id\tgnl|DBNAME|LOCUSTAG_' + format(locus_index, '03d') + '\n' + note_entry
 		if len(pieces) > 0:
-
-			if 'trans-splicing' in note_entry:
-
+			if 'trans_splicing' in note_entry:
 				out_file.write(str(start1) + '\t' + str(start2) + '\tgene\n' +
-						'\n'.join('\t'.join(x) for x in pieces) + '\n' +
-						'\t\t\tgene\t' + gene_name + '\n' +
-						'\t\t\tlocus_tag\tLOCUSTAG_' + format(locus_index, '03d') + '\n' +
-						'\t\t\texception\ttrans-splicing\n' +
-						str(start1) + '\t' + str(start2) + '\t' + gene_type + '\n' +
-						'\n'.join('\t'.join(x) for x in pieces) + '\n' +
-						'\t\t\tproduct\t' + gene_prod + '\n' +
-						note_entry +
-						str(start1) + '\t' + str(start2) + '\texon\n' +
-						'\t\t\tnumber\t1\n' +
-						'\n'.join(('\t'.join(x) + '\texon\n\t\t\tnumber\t' + str(index)) for index, x in enumerate(pieces, start=2)) + '\n')
-
+					'\n'.join('\t'.join(x) for x in pieces) + '\n' +
+					'\t\t\tgene\t' + gene_name + '\n' +
+					'\t\t\tlocus_tag\tLOCUSTAG_' + format(locus_index, '03d') + '\n' +
+					'\t\t\ttrans_splicing\n' +
+					str(start1) + '\t' + str(start2) + '\t' + gene_type + '\n' +
+					'\n'.join('\t'.join(x) for x in pieces) + '\n' +
+					'\t\t\tgene\t' + gene_name + '\n' +
+					'\t\t\tlocus_tag\tLOCUSTAG_' + format(locus_index, '03d') + '\n' +
+					'\t\t\tproduct\t' + gene_prod + '\n' +
+					note_entry +
+					str(start1) + '\t' + str(start2) + '\texon\n' +
+					'\t\t\tnumber\t1\n' +
+					'\n'.join(('\t'.join(x) + '\texon\n\t\t\tnumber\t' + str(index)) for index, x in enumerate(pieces, start=2)) + '\n')
 			elif 'intron' in note_entry:
-
 				out_file.write(str(start1) + '\t' + str(start2) + '\tintron\n' +
 						'\t\t\tnumber\t1\n' +
 						'\n'.join(('\t'.join(x) + '\tintron\n\t\t\tnumber\t' + str(index)) for index, x in enumerate(pieces, start=2)) + '\n')
-
 			else:
 				out_file.write(str(start1) + '\t' + str(pieces[-1][1]) + '\tgene\n' +
-						'\t\t\tgene\t' + gene_name + '\n' +
-						'\t\t\tlocus_tag\tLOCUSTAG_' + format(locus_index, '03d') + '\n' +
-						str(start1) + '\t' + str(start2) + '\t' + gene_type + '\n' +
-						'\n'.join('\t'.join(x) for x in pieces) + '\n' +
-						'\t\t\tproduct\t' + gene_prod + '\n' +
-						note_entry +
-						str(start1) + '\t' + str(start2) + '\texon\n' +
-						'\t\t\tnumber\t1\n' +
-						'\n'.join(('\t'.join(x) + '\texon\n\t\t\tnumber\t' + str(index)) for index, x in enumerate(pieces, start=2)) + '\n')
-
+					'\t\t\tgene\t' + gene_name + '\n' +
+					'\t\t\tlocus_tag\tLOCUSTAG_' + format(locus_index, '03d') + '\n' +
+					str(start1) + '\t' + str(start2) + '\t' + gene_type + '\n' +
+					'\n'.join('\t'.join(x) for x in pieces) + '\n' +
+					'\t\t\tgene\t' + gene_name + '\n' +
+					'\t\t\tlocus_tag\tLOCUSTAG_' + format(locus_index, '03d') + '\n' +
+					'\t\t\tproduct\t' + gene_prod + '\n' +
+					note_entry +
+					str(start1) + '\t' + str(start2) + '\texon\n' +
+					'\t\t\tnumber\t1\n' +
+					'\n'.join(('\t'.join(x) + '\texon\n\t\t\tnumber\t' + str(index)) for index, x in enumerate(pieces, start=2)) + '\n')
 		else:
 			if 'intron' in note_entry:
-
 				out_file.write(str(start1) + '\t' + str(start2) + '\tintron\n' +
 						'\t\t\tnumber\t1\n')
-
-
+			elif is_pseudo:
+				out_file.write(str(start1) + '\t' + str(start2) + '\tgene\n' +
+						'\t\t\tgene\t' + gene_name + '\n' +
+						'\t\t\tlocus_tag\tLOCUSTAG_' + format(locus_index, '03d') + '\n' +
+						note_entry)
 			else:
 				out_file.write(str(start1) + '\t' + str(start2) + '\tgene\n' +
 						'\t\t\tgene\t' + gene_name + '\n' +
 						'\t\t\tlocus_tag\tLOCUSTAG_' + format(locus_index, '03d') + '\n' +
 						str(start1) + '\t' + str(start2) + '\t' + gene_type + '\n' +
+						'\t\t\tgene\t' + gene_name + '\n' +
+						'\t\t\tlocus_tag\tLOCUSTAG_' + format(locus_index, '03d') + '\n' +
 						'\t\t\tproduct\t' + gene_prod + '\n' +
 						note_entry)
-
 		if 'intron' not in note_entry:
 			locus_index = locus_index + 1
 
