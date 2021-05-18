@@ -3,6 +3,7 @@
 #####################
 # Author: B. Anderson
 # Date: 15 Apr 2020, 21 May 2020 (updated to now handle the more BED-like output of the new blastn_parse script)
+# Modified: May 2021 to also output query coverage, and to report %
 # Description: parse a plot_data.tab file from blastn_parse to calculate the percentage cover
 #####################
 
@@ -23,8 +24,11 @@ if (len(sys.argv[1:])) == 0:
 
 # read in the plot_data.tab file line by line and capture the hit information
 hit_dict = {}
+qhit_dict = {}
 sbjct_len_dict = {}
+query_len_dict = {}
 cover_dict = {}
+qcover_dict = {}
 sbjct_list = []
 query_list = []
 with open(sys.argv[1], 'r') as input:
@@ -63,12 +67,24 @@ with open(sys.argv[1], 'r') as input:
 			hit_dict[sbjct].append((sbjct_start, sbjct_end))
 
 
-		# capture the subject lengths and sbjct/query presence
+		# capture the hit information by query
+		if query not in qhit_dict:
+			qhit_dict[query] = [(query_start, query_end)]
+		else:
+			qhit_dict[query].append((query_start, query_end))
+
+
+		# capture the subject lengths and presence
 		if sbjct not in sbjct_len_dict:
 			sbjct_len_dict[sbjct] = sbjct_len
 
 		if sbjct not in sbjct_list:
 			sbjct_list.append(sbjct)
+
+
+		# capture the query lengths and presence
+		if query not in query_len_dict:
+			query_len_dict[query] = query_len
 
 		if query not in query_list:
 			query_list.append(query)
@@ -94,20 +110,56 @@ for sbjct in hit_dict:
 	else:
 		print('Duplicate subject?')
 
+for query in qhit_dict:
+	hit_ranges = []
+	for begin, end in sorted(qhit_dict[query]):
+		if hit_ranges and hit_ranges[-1][1] >= begin:
+			hit_ranges[-1][1] = max(hit_ranges[-1][1], end)
+		else:
+			hit_ranges.append([begin, end])
+
+	total_length = 0
+	for begin, end in hit_ranges:
+		total_length = total_length + len(range(begin, end))
+
+	if query not in qcover_dict:
+		qcover_dict[query] = total_length
+	else:
+		print('Duplicate query?')
+
 
 # report the findings
 cover_len = 0
 total_len = 0
+qcover_len = 0
+qtotal_len = 0
 for sbjct in cover_dict:
 	cover_len = cover_len + cover_dict[sbjct]
 for sbjct in sbjct_len_dict:
 	total_len = total_len + sbjct_len_dict[sbjct]
+for query in qcover_dict:
+	qcover_len = qcover_len + qcover_dict[query]
+for query in query_len_dict:
+	qtotal_len = qtotal_len + query_len_dict[query]
 
 print('Summary for BLAST results with ' + str(len(sbjct_len_dict)) + ' subjects and ' + str(len(query_list)) + ' queries.')
 print('')
-print('Hit coverage:')
+
+print('Subject hit coverage:')
 for sbjct in sorted(sbjct_list):
 	if sbjct in cover_dict:
-		print(sbjct + ': ' + str(cover_dict[sbjct]) + ' of ' + str(sbjct_len_dict[sbjct]))
+		print(sbjct + ': ' + str(cover_dict[sbjct]) + ' of ' + str(sbjct_len_dict[sbjct]) + ' (' +
+			str(round(100 * cover_dict[sbjct] / sbjct_len_dict[sbjct], 2)) + '%)')
 print('')
-print('Total covered: ' + str(cover_len) + ' of ' + str(total_len))
+print('Total subject covered: ' + str(cover_len) + ' of ' + str(total_len) + ' (' +
+			str(round(100 * cover_len / total_len, 2)) + '%)')
+print('')
+
+print('Query hit coverage:')
+for query in sorted(query_list):
+	if query in qcover_dict:
+		print(query + ': ' + str(qcover_dict[query]) + ' of ' + str(query_len_dict[query]) + ' (' +
+			str(round(100 * qcover_dict[query] / query_len_dict[query], 2)) + '%)')
+print('')
+print('Total query covered: ' + str(qcover_len) + ' of ' + str(qtotal_len) + ' (' +
+			str(round(100 * qcover_len / qtotal_len, 2)) + '%)')
