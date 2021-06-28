@@ -3,13 +3,18 @@
 ###############################################
 # Author: B. Anderson
 # Date: 12 Mar 2019
-# Modified: Jun 2021 (updated for phylip and using AlignIO), Oct 2020
+# Modified: Jun 2021 (updated for phylip and using AlignIO, numpy and pandas), Oct 2020
 # Description: read in an alignment and remove positions with more than a specified number or percentage of gaps or Ns
 ###############################################
 
 
 import sys
+import pandas
+import numpy
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
 from Bio import AlignIO
+from Bio.Align import MultipleSeqAlignment
 
 
 def help():
@@ -92,62 +97,140 @@ else:
 	sys.exit('Please specify alignment type as "fasta" or "phylip"')
 
 
-# now that the data has been read, we need to identify positions with too many gaps or Ns
+# capture the sequence ids
 
-keep_cols = []
-counter = 1
-align_length = len(align)		# this is number of rows; columns is get_alignment_length()
+ids = []
 
-for index in range(0, align.get_alignment_length()):
-	gap_count = align[:, index].count('-')
-	n_count = align[:, index].upper().count('N')
+for sequence in align:
+	ids.append(sequence.id)
+
+#print('Sequence ids are: ')
+#for id in ids:
+#	print(id)
+
+len_align = align.get_alignment_length()
+print('Alignment length is: ' + str(len_align))
+
+
+# now that the data has been read, we need to convert the sequences to an array, then to a dataframe
+# due to memory issues, I need to do this in chunks when the file is large
+
+# define a function to convert to upper case
+def upperit(x):
+	return(str(x).upper())
+
+
+# if the alignment is super large
+if len_align > 500000:
+	align_list = []
+	increment = 200000
+
+	for start in range(0, len_align, increment):
+		end = min(len_align, start + increment)
+
+		print('Filtering from positions: ' + str(start) + ' to ' + str(end) + ' of ' + str(len_align))
+
+		n_array = numpy.array([list(sample) for sample in align[:, start: end]])
+
+		p_df = pandas.DataFrame(n_array)
+		rows = float(len(p_df))
+
+		# convert to upper case for search
+
+		p_df = p_df.applymap(upperit)
+
+		# now we need to filter the dataframe by columns, to keep columns which pass filters
+		# from https://stackoverflow.com/questions/31614804/how-to-delete-a-column-in-pandas-dataframe-based-on-a-condition/31618820
+
+		if gap_number:
+			filtp_df = p_df.loc[:, (p_df.eq('-').sum() + p_df.eq('N').sum() <= num_gaps)]
+
+		elif gap_percent:
+			filtp_df = p_df.loc[:, (round(100*(p_df.eq('-').sum() + p_df.eq('N').sum())/rows, 0) <= perc_gaps)]
+
+		else:
+			sys.exit('Specify gap/N threshold')
+
+		# now that the dataframe is filtered, we need to convert it back into an alignment
+
+		new_records = []
+
+		for index, sequence in enumerate(filtp_df.values.tolist()):
+			new_sequence = Seq(''.join(sequence))
+			new_record = SeqRecord(new_sequence, id = ids[index])
+			new_records.append(new_record)
+
+		# append it to a list
+		align_list.append(MultipleSeqAlignment(new_records))
+
+
+	# stick the alignments together and output the new alignment
+
+	new_alignment = align_list[0]
+	for piece in align_list[1:]:
+		new_alignment = new_alignment + piece
+
+	print('Filtered alignment is ' + str(new_alignment.get_alignment_length()) + ' bp')
+
+	if align_type == 'fasta':
+
+		with open(alignment.replace('.f', '_clean.f'), 'w') as out_file:
+			AlignIO.write(new_alignment, out_file, 'fasta')
+
+	elif align_type == 'phylip':
+
+		with open(alignment.replace('.p', '_clean.p'), 'w') as out_file:
+			AlignIO.write(new_alignment, out_file, 'phylip-relaxed')
+
+
+else:
+	n_array = numpy.array([list(sample) for sample in align])
+	print('Dimensions of array: ' + str(n_array.shape))
+
+	p_df = pandas.DataFrame(n_array)
+	rows = float(len(p_df))
+
+	# convert to upper case for search
+
+	p_df = p_df.applymap(upperit)
+
+
+	# now we need to filter the dataframe by columns, to keep columns which pass filters
+	# from https://stackoverflow.com/questions/31614804/how-to-delete-a-column-in-pandas-dataframe-based-on-a-condition/31618820
 
 	if gap_number:
-		if gap_count + n_count > num_gaps:
-			continue
-		else:
-			keep_cols.append(index)
+		filtp_df = p_df.loc[:, (p_df.eq('-').sum() + p_df.eq('N').sum() <= num_gaps)]
 
 	elif gap_percent:
-		gap_count_perc = round(100*float(gap_count + n_count)/align_length, 0)
-		if gap_count_perc > perc_gaps:
-			continue
-		else:
-			keep_cols.append(index)
+		filtp_df = p_df.loc[:, (round(100*(p_df.eq('-').sum() + p_df.eq('N').sum())/rows, 0) <= perc_gaps)]
 
 	else:
 		sys.exit('Specify gap/N threshold')
 
-	# insert a counter to enable tracking of large alignment files
-	if index // 100000 == counter:
-		print(str(index))
-		counter = counter + 1
+	#print('New data frame has ' + str(rows) + ' rows and ' + len(filtp_df.columns) + ' columns')
 
 
-# slice the alignments to keep the correct columns
+	# now that the dataframe is filtered, we need to convert it back into an alignment
 
-print('Keeping ' + str(len(keep_cols)) + ' columns')
+	new_records = []
 
-new_alignment = align[:, keep_cols[0]: keep_cols[0] + 1]	# make a single column alignment
+	for index, sequence in enumerate(filtp_df.values.tolist()):
+		new_sequence = Seq(''.join(sequence))
+		new_record = SeqRecord(new_sequence, id = ids[index])
+		new_records.append(new_record)
 
-index = 1
-counter = 1
-for column in keep_cols[1:]:
-	new_alignment = new_alignment + align[:, column: column + 1]		# add single column alignments
-	index = index + 1
-	if index // 10000 == counter:
-		print(str(index))
-		counter = counter + 1
+	new_alignment = MultipleSeqAlignment(new_records)
 
+	print('Filtered alignment is ' + str(new_alignment.get_alignment_length()) + ' bp')
 
-# output the new alignment
+	# output the new alignment
 
-if align_type == 'fasta':
+	if align_type == 'fasta':
 
-	with open(alignment.replace('.f', '_clean.f'), 'w') as out_file:
-		AlignIO.write(new_alignment, out_file, 'fasta')
+		with open(alignment.replace('.f', '_clean.f'), 'w') as out_file:
+			AlignIO.write(new_alignment, out_file, 'fasta')
 
-elif align_type == 'phylip':
+	elif align_type == 'phylip':
 
-	with open(alignment.replace('.p', '_clean.p'), 'w') as out_file:
-		AlignIO.write(new_alignment, out_file, 'phylip-relaxed')
+		with open(alignment.replace('.p', '_clean.p'), 'w') as out_file:
+			AlignIO.write(new_alignment, out_file, 'phylip-relaxed')
