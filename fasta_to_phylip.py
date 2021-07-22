@@ -3,7 +3,7 @@
 ###############################################
 # Author: B. Anderson
 # Date: 27 Jun 2019
-# Modified: Oct 2020
+# Modified: Oct 2020, Jun 2021 (to make more flexible)
 # Description: read in a fasta alignment (with a particular naming convention) and convert it to phylip for running in RAxML
 ###############################################
 
@@ -39,7 +39,10 @@ for fasta in fastas:
 # change the names to relaxed phylip format
 label_list = []
 for fasta in fasta_list:
-	label = fasta.description.split()[3] + '_' + fasta.description.split()[4]
+	if len(fasta.description.split()) > 4:
+		label = fasta.description.split()[3] + '_' + fasta.description.split()[4]
+	else:
+		label = fasta.description.split()[0]
 
 	index = 2
 	orig_label = label
