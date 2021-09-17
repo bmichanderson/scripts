@@ -4,6 +4,7 @@
 # Author: B. Anderson
 # Date: 15 Aug 2020
 # Modified: 30 Jan 2021 (added parser and flexibility for header info), April 2021 (adding support for generating a partitions file)
+# Modified: Sep 2021 (added additional naming convention for broader applicability and made region names more flexible and a report for many alignments)
 # Description: combine fasta alignments for a single concatenated version with all taxa
 ################
 
@@ -18,14 +19,16 @@ from Bio.Seq import Seq
 # instantiate the parser
 parser = argparse.ArgumentParser(description = 'A script to concatenate multiple sequence alignments, inserting dashes for missing taxa ' +
 						'and optionally to create a nexus format partitions file. ' +
-						'Files are assumed to be named: align_{region}_... for partition file creation.')
+						'Files are assumed to be named: align_{region}_... in the original [default] naming convention. ' +
+						'If named otherwise, file names (minus the suffix) are used for region names (in any partition file created).')
 
 
 # add arguments to parse
 parser.add_argument('alignments', type=str, help='The multiple sequence alignments', nargs='*')
 parser.add_argument('-f', type=str, dest='format',
-			help='Specify name format: original [default] = space delimited, with taxa as fourth and fifth field; ' +
-			'simple = underscore delimited, with taxa as first and second field')
+			help='Specify entry name format in the alignment files: original [default] = space delimited, with taxa as fourth and fifth field; ' +
+			'simple = underscore delimited, with taxa as first and second field; ' +
+			'single = no delimitation, a single unique identifier per individual')
 parser.add_argument('-p', type=str, dest='partitions', help='Create a partitions file, \"locus\" [default] or \"cds\" for by codon position ' +
 								'assuming regions begin with position 1')
 
@@ -40,9 +43,14 @@ args = parser.parse_args()
 alignments = args.alignments		# a list
 
 format = args.format
+format_original = False
+format_simple = False
+format_single = False
 if format:
 	if format.lower() == 'simple':
-		format_original = False
+		format_simple = True
+	elif format.lower() == 'single':
+		format_single = True
 	else:
 		format_original = True
 else:
@@ -78,7 +86,10 @@ for multifasta in files:
 		if len(len_list) > 1:
 			sys.exit('Problem with aligned sequence lengths for ' + multifasta)
 		else:
-			regions.append([align_num, multifasta.split('_')[1], len_list[0]])	# assuming files are named: align_region_...
+			if format_original:
+				regions.append([align_num, multifasta.split('_')[1], len_list[0]])	# assuming files are named: align_region_...
+			else:
+				regions.append([align_num, ''.join(multifasta.split('.')[:-1]), len_list[0]])	# strips out extension and uses file name for region
 	align_num = align_num + 1
 
 print('Read in ' + str(align_num - 1) + ' alignments')
@@ -87,26 +98,29 @@ print('Read in ' + str(align_num - 1) + ' alignments')
 # determine all the taxa present
 taxa_list = []
 for entry in entry_list:
-	if format_original:
-		head = entry[1].description.split()
+	head = entry[1].description.split()
+	if format_simple or format_single:
+		if head[0] in taxa_list:
+			continue
+		else:
+			taxa_list.append(head[0])
+	else:		# format_original
 		acc = head[2]
 		if (head[3] + ' ' + head[4]) in (x[0] for x in taxa_list):
 			continue
 		else:
 			taxa_list.append([head[3] + ' ' + head[4], acc])
-	else:
-		head = entry[1].description.strip()
-		if head in taxa_list:
-			continue
-		else:
-			taxa_list.append(head)
 
 taxa_list.sort()
 print('Detected ' + str(len(taxa_list)) + ' taxa present across alignments')
 
 
 # for each region, create fasta files for missing taxa that are "-" and as long as the others
+align_count = 0
 for num in range(1, align_num):
+	align_count = align_count + 1
+	if align_count % 200 == 0:
+		print('Evaluated ' + str(align_count) + ' alignments of ' + str(align_num - 1) + ' alignments')
 	taxa_minilist = []
 	length = 0
 	count = 0
@@ -147,7 +161,7 @@ for num in range(1, align_num):
 				entry_list.append([num, new_fasta])
 				count = count + 1
 
-	if len(missing) > 0:
+	if len(missing) > 0 and not format_single:
 		print('Added ' + str(count) + ' gap entries for missing taxa for alignment ' + str(num) + ': ' + regions[num-1][1])
 		print('Missing taxa are: ' + '\t'.join(missing))
 
