@@ -97,16 +97,12 @@ else:
 	sys.exit('Please specify alignment type as "fasta" or "phylip"')
 
 
-# capture the sequence ids
-
+# capture the sequence ids and descriptions
 ids = []
-
+descriptions = []
 for sequence in align:
 	ids.append(sequence.id)
-
-#print('Sequence ids are: ')
-#for id in ids:
-#	print(id)
+	descriptions.append(sequence.description)
 
 len_align = align.get_alignment_length()
 print('Alignment length is: ' + str(len_align))
@@ -157,7 +153,7 @@ if len_align > 500000:
 
 		for index, sequence in enumerate(filtp_df.values.tolist()):
 			new_sequence = Seq(''.join(sequence))
-			new_record = SeqRecord(new_sequence, id = ids[index])
+			new_record = SeqRecord(new_sequence, id = ids[index], description = descriptions[index])
 			new_records.append(new_record)
 
 		# append it to a list
@@ -216,7 +212,7 @@ else:
 
 	for index, sequence in enumerate(filtp_df.values.tolist()):
 		new_sequence = Seq(''.join(sequence))
-		new_record = SeqRecord(new_sequence, id = ids[index])
+		new_record = SeqRecord(new_sequence, id = ids[index], description = descriptions[index])
 		new_records.append(new_record)
 
 	new_alignment = MultipleSeqAlignment(new_records)
