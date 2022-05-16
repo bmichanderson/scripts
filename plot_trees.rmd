@@ -1,0 +1,244 @@
+---
+title: "Plot phylogenetic trees for sequence capture"
+output: html_document
+---
+
+This document describes the process of plotting phylogenetic trees for sequence capture output  
+The trees need to be in Newick format and should be in the current directory  
+
+Results from IQ-TREE and ASTRAL will have multiple node labels (concordance factors) 
+To get the concordance trees into Newick properly, use `concord_to_newick.py`   
+Similarly, use `astral_parse.py` to separate node labels for ASTRAL (posterior probabilities and quartet support)  
+
+The outgroup file should hav a single tip label per line  
+The correspondence between sample IDs and sample labels should be in a tab-separated text file, one line per sample  
+```{r}
+suppressMessages(library(ape))
+concat_tree <- "concat.treefile"
+concat_scf <- "concord_newick_scf.tre"
+concat_gcf <- "concord_newick_gcf.tre"
+astral_p <- "astral_p.tre"
+astral_q <- "astral_q.tre"
+outgroup_file <- "outgroup.txt"
+samples_file <- "samples.tab"
+```
+
+Read in the samples file
+```{r}
+if (file.exists(samples_file)) {
+	samples_present <- TRUE
+	sample_table <- read.table(samples_file)
+	colnames(sample_table) <- c("ID", "label")
+} else {
+	samples_present <- FALSE
+}
+```
+
+Read in the outgroups file
+```{r}
+if (file.exists(outgroup_file)) {
+	outgroup_present <- TRUE
+	outgroups <- read.table(outgroup_file)[, 1]
+} else {
+	outgroup_present <- FALSE
+}
+```
+
+Read in the tree files
+```{r}
+c_tree <- read.tree(concat_tree)
+cs_tree <- read.tree(concat_scf)
+cg_tree <- read.tree(concat_gcf)
+ap_tree <- read.tree(astral_p)
+aq_tree <- read.tree(astral_q)
+tree_list <- list(c_tree, cs_tree, cg_tree, ap_tree, aq_tree)
+```
+
+If there is an outgroup, root the trees
+```{r}
+if (outgroup_present) {
+	for (index in seq_len(length(tree_list))) {
+		rooted_tree <- root(tree_list[[index]], outgroups, resolve.root = TRUE, edgelabel = TRUE)
+		tree_list[[index]] <- rooted_tree
+	}
+}
+```
+
+If there are sample labels, substitute them  
+```{r}
+if (samples_present) {
+	for (index in seq_len(length(tree_list))) {
+		tips <- tree_list[[index]]$tip.label
+		new_tips <- tips
+		for (tind in seq_len(length(tips))) {
+			if (tips[tind] %in% sample_table$ID) {
+				new_tips[tind] <- sample_table$label[sample_table$ID == tips[tind]]
+			}
+		}
+		tree_list[[index]]$tip.label <- new_tips
+	}
+}
+```
+
+
+First, the concatenation tree  
+
+Start a graphics device if wanting to output
+```{r}
+svg("concat_out.svg", width = 14, height = 21)
+```
+
+Or pdf if just wanting a quick plot
+```{r}
+pdf("concat_out.pdf", width = 14, height = 21)
+```
+
+Plot the concat tree with edge lengths
+```{r}
+tree <- tree_list[[1]]
+plot.phylo(ladderize(tree, right = FALSE),
+			no.margin = TRUE,
+			font = 1)
+add.scale.bar(x = 0.05, y = -1, font = 1)
+```
+
+Plot node labels (UFbootstrap) on edges
+```{r}
+drawSupportOnEdges(tree$node.label, adj = c(0.5, -0.5), frame = "none")
+```
+
+Or, if wanting to plot node labels on nodes
+```{r}
+nodelabels(tree$node.label, adj = c(-0.05, 0.5), frame = "none")
+```
+
+Capture concordance factors to plot as desired  
+```{r}
+tree <- tree_list[[2]]
+concord_df <- data.frame(matrix(ncol = 3, nrow = tree$Nnode))
+index <- 1
+for (label in tree$node.label) {
+	if (any(label == "", label == "Root")) {
+		values <- c("", "", "")
+	} else {
+		values <- strsplit(label, split = "\\/")[[1]]
+	}
+	concord_df[index, 1:3] <- values
+	index <- index + 1
+}
+concord_df <- as.data.frame(lapply(concord_df, as.numeric))
+```
+
+```{r}
+tree <- tree_list[[3]]
+gconcord_df <- data.frame(matrix(ncol = 4, nrow = tree$Nnode))
+index <- 1
+for (label in tree$node.label) {
+	if (any(label == "", label == "Root")) {
+		values <- c("", "", "", "")
+	} else {
+		values <- strsplit(label, split = "\\/")[[1]]
+	}
+	gconcord_df[index, 1:4] <- values
+	index <- index + 1
+}
+gconcord_df <- as.data.frame(lapply(gconcord_df, as.numeric))
+```
+
+Plot scf concordance factors as pie charts on nodes
+```{r}
+nodelabels(pie = concord_df,
+			piecol = c("white", "grey", "black"),
+			cex = 0.25)
+```
+
+Or, gcf
+```{r}
+nodelabels(pie = gconcord_df,
+			piecol = c("white", "#c1c1c1", "#5b5a5a", "black"),
+			cex = 0.25)
+```
+
+Stop creating the graphic
+```{r}
+invisible(dev.off())
+```
+
+
+Now for the ASTRAL tree  
+
+Start a graphics device if wanting to output
+```{r}
+svg("astral_out.svg", width = 11, height = 21)
+```
+
+Or pdf if just wanting a quick plot
+```{r}
+pdf("astral_out.pdf", width = 11, height = 21)
+```
+
+Plot the tree with edge lengths
+```{r}
+tree <- tree_list[[4]]
+plot.phylo(ladderize(tree, right = FALSE),
+			no.margin = TRUE,
+			font = 1)
+add.scale.bar(x = 0.1, y = -1, font = 1)
+```
+
+Grab the posterior probabilities from the file for display  
+```{r}
+pp_df <- data.frame(matrix(ncol = 1, nrow = tree$Nnode))
+index <- 1
+for (label in tree$node.label) {
+	if (any(label == "", label == "Root")) {
+		values <- c("")
+	} else {
+		values <- strsplit(label, split = "\\/")[[1]][1]
+	}
+	pp_df[index, ] <- values
+	index <- index + 1
+}
+pp_df <- as.data.frame(lapply(pp_df, as.numeric))
+pps <- sapply(pp_df[, 1], function(x) format(round(x, 2), nsmall = 2))
+pps[pps == "NA"] <- ""
+```
+
+Plot node labels (posterior prob) on edges
+```{r}
+drawSupportOnEdges(pps, adj = c(0.5, -0.5), frame = "none")
+```
+
+Or, if wanting to plot node labels on nodes
+```{r}
+nodelabels(pps, adj = c(-0.05, 0.5), frame = "none")
+```
+
+Capture quartet support to plot  
+```{r}
+tree <- tree_list[[5]]
+quart_df <- data.frame(matrix(ncol = 3, nrow = tree$Nnode))
+index <- 1
+for (label in tree$node.label) {
+	if (any(label == "", label == "Root")) {
+		values <- c("", "", "")
+	} else {
+		values <- strsplit(label, split = "\\/")[[1]]
+	}
+	quart_df[index, 1:3] <- values
+	index <- index + 1
+}
+quart_df <- as.data.frame(lapply(quart_df, as.numeric))
+```
+
+Plot quartet support as pie charts on nodes
+```{r}
+nodelabels(pie = quart_df,
+			piecol = c("white", "grey", "black"),
+			cex = 0.25, adj = 0.49)
+```
+
+Stop creating the graphic
+```{r}
+invisible(dev.off())
+```
