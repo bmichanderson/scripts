@@ -10,7 +10,7 @@ Results from IQ-TREE and ASTRAL will have multiple node labels (concordance fact
 To get the concordance trees into Newick properly, use `concord_to_newick.py`   
 Similarly, use `astral_parse.py` to separate node labels for ASTRAL (posterior probabilities and quartet support)  
 
-The outgroup file should hav a single tip label per line  
+The outgroup file should have a single tip label per line  
 The correspondence between sample IDs and sample labels should be in a tab-separated text file, one line per sample  
 ```{r}
 suppressMessages(library(ape))
@@ -58,7 +58,9 @@ If there is an outgroup, root the trees
 ```{r}
 if (outgroup_present) {
 	for (index in seq_len(length(tree_list))) {
-		rooted_tree <- root(tree_list[[index]], outgroups, resolve.root = TRUE, edgelabel = TRUE)
+		these_outgroups <- outgroups[outgroups %in% tree_list[[index]]$tip.label]
+		rooted_tree <- root(tree_list[[index]], as.character(these_outgroups),
+			resolve.root = TRUE, edgelabel = TRUE)
 		tree_list[[index]] <- rooted_tree
 	}
 }
