@@ -3,24 +3,29 @@
 # Author: B. Anderson
 # Date: 28 Jun 2019
 # Updated: Oct 2021 (can now take a text file with strings for string matching, one per line; also cleaned up and added parser)
+# Updated: Jun 2022
 # Description: a script to simply remove entries from multifastas based on string matches (arg1)
 ###############################################
 
+
 import sys
+import os
 import argparse
 from Bio import SeqIO
 
 
 # instantiate the parser
 parser = argparse.ArgumentParser(description = 'A script to remove fasta entries based on string matching. ' +
-												'The new fasta files are output in the current directory with prefix \"mod_\".')
+	'The new fasta files are output in the current directory with prefix \"mod_\".')
 
 
 # add arguments to parse
-parser.add_argument('strings', type = str, help = 'The comma delimited strings to search for when removing fastas from the multifastas (or nothing if file specified), ' +
-					'and then the space-delimited multifastas', nargs = '*')
-parser.add_argument('-f', type = str, dest = 'string_file', help = 'A text file with a list of strings, one per line (optional). ' + 
-					'If not specified, then the first space-delimited command line argument will be interpreted as the comma-delimited search strings.')
+parser.add_argument('strings', type = str, help = 'The comma delimited strings to search for ' +
+	'when removing fastas from the multifastas (or nothing if file specified), ' +
+	'and then the space-delimited multifastas', nargs = '*')
+parser.add_argument('-f', type = str, dest = 'string_file', help = 'A text file with a list of strings, ' +
+	'one per line (optional). If not specified, then the first space-delimited command line argument ' +
+	'will be interpreted as the comma-delimited search strings.')
 
 
 # parse the command line
@@ -66,7 +71,7 @@ for multifasta in file_list:
 				remove_indices.append(i)
 	for i in sorted(remove_indices, reverse = True):
 		del fasta_list[i]
-	print('Removed ' + str(len(remove_indices)) + ' entries from ' + multifasta)
-	with open('mod_' + multifasta, 'w') as outfile:
+	print('Removed ' + str(len(remove_indices)) + ' entries from ' + os.path.basename(multifasta))
+	with open('mod_' + os.path.basename(multifasta), 'w') as outfile:
 		for fasta in fasta_list:
 			SeqIO.write(fasta, outfile, 'fasta')
