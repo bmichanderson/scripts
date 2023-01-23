@@ -87,12 +87,12 @@ First, the concatenation tree
 
 Start a graphics device if wanting to output
 ```{r}
-svg("concat_out.svg", width = 14, height = 21)
+svg("concat_out.svg", width = 28, height = 42)
 ```
 
 Or pdf if just wanting a quick plot
 ```{r}
-pdf("concat_out.pdf", width = 14, height = 21)
+pdf("concat_out.pdf", width = 28, height = 42)
 ```
 
 Plot the concat tree with edge lengths
@@ -115,6 +115,7 @@ nodelabels(tree$node.label, adj = c(-0.05, 0.5), frame = "none")
 ```
 
 Capture concordance factors to plot as desired  
+Site concordance:  
 ```{r}
 tree <- tree_list[[2]]
 concord_df <- data.frame(matrix(ncol = 3, nrow = tree$Nnode))
@@ -131,6 +132,7 @@ for (label in tree$node.label) {
 concord_df <- as.data.frame(lapply(concord_df, as.numeric))
 ```
 
+Gene concordance:  
 ```{r}
 tree <- tree_list[[3]]
 gconcord_df <- data.frame(matrix(ncol = 4, nrow = tree$Nnode))
@@ -147,14 +149,15 @@ for (label in tree$node.label) {
 gconcord_df <- as.data.frame(lapply(gconcord_df, as.numeric))
 ```
 
-Plot scf concordance factors as pie charts on nodes
+Plot concordance factors as pie charts on nodes 
+Site concordance:  
 ```{r}
 nodelabels(pie = concord_df,
 			piecol = c("white", "grey", "black"),
 			cex = 0.25)
 ```
 
-Or, gcf
+Gene concordance:  
 ```{r}
 nodelabels(pie = gconcord_df,
 			piecol = c("white", "#c1c1c1", "#5b5a5a", "black"),
@@ -171,12 +174,12 @@ Now for the ASTRAL tree
 
 Start a graphics device if wanting to output
 ```{r}
-svg("astral_out.svg", width = 11, height = 21)
+svg("astral_out.svg", width = 22, height = 42)
 ```
 
 Or pdf if just wanting a quick plot
 ```{r}
-pdf("astral_out.pdf", width = 11, height = 21)
+pdf("astral_out.pdf", width = 22, height = 42)
 ```
 
 Plot the tree with edge lengths
