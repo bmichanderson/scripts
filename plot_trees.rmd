@@ -21,6 +21,14 @@ astral_p <- "astral_p.tre"
 astral_q <- "astral_q.tre"
 outgroup_file <- "outgroup.txt"
 samples_file <- "samples.tab"
+run_poly <- FALSE
+```
+
+If running a polytomy test, add that output
+```{r}
+run_poly <- TRUE
+astral_t <- "astral_poly.tre"
+astral_tc <- "astral_poly_collapsed.tre"
 ```
 
 Read in the samples file
@@ -51,7 +59,13 @@ cs_tree <- read.tree(concat_scf)
 cg_tree <- read.tree(concat_gcf)
 ap_tree <- read.tree(astral_p)
 aq_tree <- read.tree(astral_q)
-tree_list <- list(c_tree, cs_tree, cg_tree, ap_tree, aq_tree)
+if (run_poly) {
+	at_tree <- read.tree(astral_t)
+	atc_tree <- read.tree(astral_tc)
+	tree_list <- list(c_tree, cs_tree, cg_tree, ap_tree, aq_tree, at_tree, atc_tree)
+} else {
+	tree_list <- list(c_tree, cs_tree, cg_tree, ap_tree, aq_tree)
+}
 ```
 
 If there is an outgroup, root the trees
@@ -246,4 +260,30 @@ nodelabels(pie = quart_df,
 Stop creating the graphic
 ```{r}
 invisible(dev.off())
+```
+
+If running the polytomy test, plot other trees
+```{r}
+if (run_poly) {
+	svg("astral_poly_out.svg", width = 22, height = 42)
+	tree <- tree_list[[6]]
+	plot.phylo(ladderize(tree, right = FALSE),
+			no.margin = TRUE,
+			use.edge.length = FALSE,
+			node.depth = 2,
+			font = 1,
+			edge.width = 3)
+	drawSupportOnEdges(tree$node.label, adj = c(0.5, -0.5), frame = "none")
+	invisible(dev.off())
+	svg("astral_poly_collapsed_out.svg", width = 22, height = 42)
+	tree <- tree_list[[7]]
+	plot.phylo(ladderize(tree, right = FALSE),
+			no.margin = TRUE,
+			use.edge.length = FALSE,
+			node.depth = 2,
+			font = 1,
+			edge.width = 3)
+	drawSupportOnEdges(tree$node.label, adj = c(0.5, -0.5), frame = "none")
+	invisible(dev.off())
+}
 ```
