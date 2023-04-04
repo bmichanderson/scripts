@@ -3,7 +3,7 @@
 #################
 # Author: B. Anderson
 # Date: 27 Apr 2020
-# Modified: Nov 2020 (changed from proportion to percentage Ns), Oct 2022 (changed screen output format), Mar 2023 (add gaps)
+# Modified: Mar 2023 (add gaps), Nov 2020 (changed from proportion to percentage Ns), Oct 2022 (changed screen output format)
 # Description: output basic sequence statistics for a set of input fasta files
 #################
 
