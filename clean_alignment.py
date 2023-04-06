@@ -104,8 +104,7 @@ for sequence in align:
 	descriptions.append(sequence.description)
 
 len_align = align.get_alignment_length()
-print('Alignment length is: ' + str(len_align) + ' bp')
-print('Number of sequences: ' + str(len(align)))
+print('Alignment sequences: ' + str(len(align)) + ', length: ' + str(len_align) + ' bp')
 
 
 # now that the data has been read, we need to convert the sequences to an array, then to a dataframe
@@ -170,8 +169,8 @@ if len_align > 500000:	# alignment is super large
 		new_alignment = MultipleSeqAlignment(temp_record_list)
 
 
-	print('Filtered alignment is ' + str(new_alignment.get_alignment_length()) + ' bp')
-	print('Filtered alignment contains ' + str(len(align)) + ' sequences')
+	print('Filtered alignment sequences: ' + str(len(new_alignment)) + ', length: ' +
+		str(new_alignment.get_alignment_length()) + ' bp\n')
 
 	if align_type == 'fasta':
 		with open(alignment.replace('.f', '_clean.f'), 'w') as out_file:
@@ -182,7 +181,7 @@ if len_align > 500000:	# alignment is super large
 
 else:		# alignment is reasonable size
 	n_array = numpy.array([list(sample) for sample in align])
-	print('Dimensions of array: ' + str(n_array.shape))
+	#print('Dimensions of array: ' + str(n_array.shape))
 	p_df = pandas.DataFrame(n_array)
 	rows = float(len(p_df))
 
@@ -212,8 +211,8 @@ else:		# alignment is reasonable size
 		new_records.append(new_record)
 
 	new_alignment = MultipleSeqAlignment(new_records)
-	print('Filtered alignment is ' + str(new_alignment.get_alignment_length()) + ' bp')
-	print('Filtered alignment contains ' + str(len(new_alignment)) + ' sequences')
+	print('Filtered alignment sequences: ' + str(len(new_alignment)) + ', length: ' +
+		str(new_alignment.get_alignment_length()) + ' bp\n')
 
 	# output the new alignment
 	if align_type == 'fasta':
