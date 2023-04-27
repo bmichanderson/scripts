@@ -15,9 +15,11 @@ suppressMessages(library(ape))
 help <- function(help_message) {
 	if (missing(help_message)) {
 		cat("A script to convert a DNA alignment (fasta) to distances (Nexus)\n")
-		cat("Usage: Rscript align_to_distance.R [-m model] [-s samples] alignment.fasta\n")
+		cat("Usage: Rscript align_to_distance.R [-m model] [-p pofadinr method] [-s samples] alignment.fasta\n")
 		cat("Options:\n")
 		cat("\t-m\tThe ape DNA distance model [default F84]\n")
+		cat("\t-p\tThe pofadinr nucleotide distance method (\"g\" for GENPOFAD, \"m\" for MATCHSTATES)\n")
+		cat("\t\tIf set, this will be the method used rather than ape dist.dna\n")
 		cat("\t-s\tA file with tab-separated sample IDs and desired tip labels, one per line [optional]\n")
 	} else {
 		cat(help_message)
@@ -35,9 +37,14 @@ if (length(args) == 0) {
 	catch <- TRUE
 	model <- "F84"
 	samples_present <- FALSE
+	pofad_method_set <- FALSE
 	for (index in seq_len(length(args))) {
 		if (args[index] == "-m") {
 			model <- args[index + 1]
+			catch <- FALSE
+		} else if (args[index] == "-p") {
+			pofad_method_set <- TRUE
+			pofad_method <- args[index + 1]
 			catch <- FALSE
 		} else if (args[index] == "-s") {
 			samples_present <- TRUE
@@ -77,8 +84,25 @@ if (samples_present) {
 
 
 # calculate the distances
-cat(paste0("Calculating distances using the ", model, " model...\n"))
-distances <- dist.dna(alignment, model = model, pairwise.deletion = TRUE)
+if (pofad_method_set) {
+	suppressMessages(library(pofadinr))
+	# convert missing data to "?"
+	temp <- as.character(alignment)
+	temp[temp == "n"] <- "?"
+	dnabin <- as.DNAbin(temp)
+	if (pofad_method == "m") {
+		cat(paste0("Calculating distances using pofadinr dist.snp and the MATCHSTATES method...\n"))
+		distances <- dist.snp(dnabin, model = "MATCHSTATES")
+	} else if (pofad_method == "g") {
+		cat(paste0("Calculating distances using pofadinr dist.snp and the GENPOFAD method...\n"))
+		distances <- dist.snp(dnabin, model = "GENPOFAD")
+	} else {
+		stop(help("Please specify pofadinr method as \"m\" or \"g\"\n"), call. = FALSE)
+	}
+} else {
+	cat(paste0("Calculating distances using ape dist.dna and the ", model, " model...\n"))
+	distances <- dist.dna(alignment, model = model, pairwise.deletion = TRUE)
+}
 
 
 # output the distance matrix in Nexus format
