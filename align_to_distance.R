@@ -2,6 +2,7 @@
 ##########
 # Author: Ben Anderson
 # Date: Nov 2022
+# Modified: April 2023
 # Description: convert a DNA alignment (fasta) into a distance matrix (Nexus format)
 # Note: the resulting distance matrix will be saved as "dist_out.nex"
 ##########
@@ -18,6 +19,7 @@ help <- function(help_message) {
 		cat("Usage: Rscript align_to_distance.R [-m model] [-p pofadinr method] [-s samples] alignment.fasta\n")
 		cat("Options:\n")
 		cat("\t-m\tThe ape DNA distance model [default F84]\n")
+		cat("\t-a\tResolve ambiguous bases randomly before calculating distance in ape (\"y\" or \"n\" [default])")
 		cat("\t-p\tThe pofadinr nucleotide distance method (\"g\" for GENPOFAD, \"m\" for MATCHSTATES)\n")
 		cat("\t\tIf set, this will be the method used rather than ape dist.dna\n")
 		cat("\t-s\tA file with tab-separated sample IDs and desired tip labels, one per line [optional]\n")
@@ -36,11 +38,15 @@ if (length(args) == 0) {
 	extra <- 1
 	catch <- TRUE
 	model <- "F84"
+	ambig <- "n"
 	samples_present <- FALSE
 	pofad_method_set <- FALSE
 	for (index in seq_len(length(args))) {
 		if (args[index] == "-m") {
 			model <- args[index + 1]
+			catch <- FALSE
+		} else if (args[index] == "-a") {
+			ambig <- args[index + 1]
 			catch <- FALSE
 		} else if (args[index] == "-p") {
 			pofad_method_set <- TRUE
@@ -81,6 +87,7 @@ if (samples_present) {
 		}
 	}
 }
+taxa <- names(alignment)
 
 
 # calculate the distances
@@ -89,24 +96,27 @@ if (pofad_method_set) {
 	# convert missing data to "?"
 	temp <- as.character(alignment)
 	temp[temp == "n"] <- "?"
-	dnabin <- as.DNAbin(temp)
+	alignment <- as.DNAbin(temp)
 	if (pofad_method == "m") {
 		cat(paste0("Calculating distances using pofadinr dist.snp and the MATCHSTATES method...\n"))
-		distances <- dist.snp(dnabin, model = "MATCHSTATES")
+		distances <- dist.snp(alignment, model = "MATCHSTATES")
 	} else if (pofad_method == "g") {
 		cat(paste0("Calculating distances using pofadinr dist.snp and the GENPOFAD method...\n"))
-		distances <- dist.snp(dnabin, model = "GENPOFAD")
+		distances <- dist.snp(alignment, model = "GENPOFAD")
 	} else {
 		stop(help("Please specify pofadinr method as \"m\" or \"g\"\n"), call. = FALSE)
 	}
 } else {
+	if (ambig == "y") {
+		cat("Replacing ambiguous bases in the alignment randomly and relative to frequency in the column\n")
+		alignment <- solveAmbiguousBases(alignment, method = "columnwise", random = TRUE)
+	}
 	cat(paste0("Calculating distances using ape dist.dna and the ", model, " model...\n"))
 	distances <- dist.dna(alignment, model = model, pairwise.deletion = TRUE)
 }
 
 
 # output the distance matrix in Nexus format
-taxa <- names(alignment)
 taxa_block <- paste0("BEGIN TAXA;\n\tDIMENSIONS NTAX=", length(taxa), ";\n\t",
 	"TAXLABELS ", paste(taxa, collapse = " "), ";\nEND;\n")
 dist_block <- paste0("BEGIN DISTANCES;\n\tFORMAT\n\t\tTRIANGLE=BOTH\n\t\tDIAGONAL\n\t\t",
