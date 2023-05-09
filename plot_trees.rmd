@@ -115,7 +115,7 @@ tree <- tree_list[[1]]
 plot.phylo(ladderize(tree, right = FALSE),
 			no.margin = TRUE,
 			font = 1)
-add.scale.bar(x = 0.05, y = -1, font = 1)
+add.scale.bar(x = mean(par("usr")[1:2]), y = par("usr")[3] + 1, font = 1)
 ```
 
 OR, if wanting to plot in the reverse orientation
@@ -125,7 +125,7 @@ plot.phylo(ladderize(tree, right = FALSE),
 			direction = "leftwards",
 			no.margin = TRUE,
 			font = 1)
-add.scale.bar()
+add.scale.bar(x = mean(par("usr")[1:2]), y = par("usr")[3] + 1, font = 1)
 ```
 
 Plot node labels (UFbootstrap) on edges
@@ -212,7 +212,7 @@ tree <- tree_list[[4]]
 plot.phylo(ladderize(tree, right = FALSE),
 			no.margin = TRUE,
 			font = 1)
-add.scale.bar(x = 0.1, y = -1, font = 1)
+add.scale.bar(x = mean(par("usr")[1:2]), y = par("usr")[3] + 1, font = 1)
 ```
 
 Or, if wanting to plot in the reverse orientation
@@ -222,7 +222,7 @@ plot.phylo(ladderize(tree, right = FALSE),
 			direction = "leftwards",
 			no.margin = TRUE,
 			font = 1)
-add.scale.bar()
+add.scale.bar(x = mean(par("usr")[1:2]), y = par("usr")[3] + 1, font = 1)
 ```
 
 Grab the posterior probabilities from the file for display  
