@@ -69,9 +69,9 @@ for multifasta in file_list:
 		for string in string_list:
 			if string in fasta.description:
 				remove_indices.append(i)
-	for i in sorted(remove_indices, reverse = True):
+	for i in sorted(set(remove_indices), reverse = True):
 		del fasta_list[i]
-	print('Removed ' + str(len(remove_indices)) + ' entries from ' + os.path.basename(multifasta))
+	print('Removed ' + str(len(set(remove_indices))) + ' entries from ' + os.path.basename(multifasta))
 	with open('mod_' + os.path.basename(multifasta), 'w') as outfile:
 		for fasta in fasta_list:
 			SeqIO.write(fasta, outfile, 'fasta')
