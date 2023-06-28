@@ -1,42 +1,95 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 ##########################
 # Author: B. Anderson
-# Date: 8-9 Jan 2019
-# Modified: Oct 2020
-# Description: generate a consensus sequence from a fasta file containing a multiple sequence alignment (e.g. from MAFFT) given a threshold
+# Date: Jan 2019
+# Modified: Oct 2020, Jun 2023 (major)
+# Description: generate a simple consensus sequence from a fasta multiple sequence alignment given a threshold
 ##########################
 
-import sys				# allows access to command line arguments
-from Bio import SeqIO			# for reading and writing sequence records
-from Bio import AlignIO			# for reading and writing alignment records
-from Bio.Align import AlignInfo		# for calculating summary information from alignments
-from Bio import Alphabet		# for generating alphabet types
-from Bio.Alphabet import IUPAC		# for interpreting DNA sequence characters
-from Bio.SeqRecord import SeqRecord	# for generating a sequence record from a sequence
+
+import sys
+import argparse
+from Bio import AlignIO
+from Bio import SeqIO
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
 
 
-# a function for when the script is called incorrectly or without arguments
-def help():
-        print('A script to generate a consensus sequence from a fasta file (arg1) using a threshold (arg2)')
-        print('')
-        print('Usage: ' + str(sys.argv[0]) + ' fasta_file threshold')
-        print('')
+# instantiate the parser
+parser = argparse.ArgumentParser(description = 'A script to generate a consensus sequence (\"consensus.fasta\") ' +
+    'from a fasta multiple sequence alignment using a threshold for counting bases')
 
 
-# Ensure there are command args
-if len(sys.argv[1:]) > 1:
-        print('Threshold: ' + float(sys.argv[2]))
+# add arguments to parse
+parser.add_argument('fasta', type = str, help = 'The multiple sequence alignment fasta file')
+parser.add_argument('-t', type = str, dest = 'thresh', help = 'The minimum (>) frequency threshold ' +
+	' (of the total non-missing characters) for counting a base at a position [default 0.2]')
+
+
+# parse the command line
+if len(sys.argv[1:]) == 0:		# if there are no arguments
+	parser.print_help(sys.stderr)
+	sys.exit(1)
+
+args = parser.parse_args()
+fasta_file = args.fasta
+threshold = args.thresh
+
+if threshold:
+	threshold = float(threshold)
 else:
-        sys.exit(help())
+	threshold = 0.2
 
 
-# import the first command argument as the alignment file and parse, and write the output
-thresh = float(sys.argv[2])			# threshold for calculating consensus position
+# create an ambiguity dictionary
+amb_dict = {
+	'AC': 'M',
+	'AG': 'R',
+	'AT': 'W',
+	'CG': 'S',
+	'CT': 'Y',
+	'GT': 'K',
+	'ACG': 'V',
+	'ACT': 'H',
+	'AGT': 'D',
+	'CGT': 'B',
+	'ACGT': 'N'
+}
 
-with open(sys.argv[1], 'r') as align_file, open('consensus.fasta', 'w') as out_file:
-	align = AlignIO.read(align_file, 'fasta', alphabet = Alphabet.Gapped(IUPAC.ambiguous_dna))
-	sum_align = AlignInfo.SummaryInfo(align)
-	consensus = sum_align.dumb_consensus(thresh, 'n', IUPAC.ambiguous_dna)
-	record = SeqRecord(consensus.upper(), id = sys.argv[1][0:sys.argv[1].find('_')], description = 'consensus using threshold of ' + str(thresh))
-	SeqIO.write(record, out_file, 'fasta')
+
+# read in the alignment and output the consensus
+with open(fasta_file, 'r') as align_file, open('consensus.fasta', 'w') as out_file:
+	alignment = AlignIO.read(align_file, 'fasta')
+	consensus = []
+
+	# for each position, use the bases that are present at > threshold to determine the consensus
+	for pos in range(alignment.get_alignment_length()):
+		align_slice = alignment[:, pos]
+		nbases = [nbase for nbase in align_slice if nbase in ['-', 'N']]
+		bases = [base for base in align_slice if base not in ['-', 'N']]
+		base_list = []
+		if float(bases.count('A') / len(bases)) > threshold:
+			base_list.append('A')
+
+		if float(bases.count('C') / len(bases)) > threshold:
+			base_list.append('C')
+
+		if float(bases.count('G') / len(bases)) > threshold:
+			base_list.append('G')
+
+		if float(bases.count('T') / len(bases)) > threshold:
+			base_list.append('T')
+
+		if any([len(base_list) == 0, len(nbases) > len(bases)]):		# no bases above threshold or more missing data than data
+			base = 'N'
+		elif len(base_list) == 1:	# a single base above threshold
+			base = base_list[0]
+		else:
+			base = amb_dict[''.join(base_list)]
+
+		consensus.append(base)
+
+	# output the consensus sequence
+	new_record = SeqRecord(Seq(''.join(consensus)), id = 'consensus', name = 'consensus', description = 'consensus')
+	SeqIO.write(new_record, out_file, 'fasta')
