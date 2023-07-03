@@ -3,8 +3,10 @@
 ###############################################
 # Author: B. Anderson
 # Date: May 2023
+# Modified: Jun-July 2023
 # Description: Assess heterozygous positions in hybrid sequences (sample ID file supplied with -f) in
 #	fasta multiple sequence alignment(s) to determine likely parent samples
+# Note: Loci with fewer than 8 heterozygous positions for a given hybrid will not be counted
 ###############################################
 
 
@@ -26,6 +28,8 @@ parser.add_argument('-f', type = str, dest = 'hybrids_file', help = 'The file wi
 parser.add_argument('-t', type = int, dest = 'thresh', help = 'The threshold (greater than or equal to) for minimum percent of ' +
 	'the total for reporting a top parent count [default 20]; e.g., only report if the top count is at least 20 percent of ' +
 	'the total number of ambiguities')
+parser.add_argument('-r', type = int, dest = 'rep', help = 'The reporting level for number of parents; if there are more than this ' +
+	'number of unique parents for a given count, only report \">x\" [default x = 10]')
 
 
 # parse the command line
@@ -36,12 +40,17 @@ args = parser.parse_args()
 alignments = args.alignments
 hybrids_file = args.hybrids_file
 threshold = args.thresh
+rep_thresh = args.rep
 
 if any([not alignments, not hybrids_file]):
 	parser.print_help(sys.stderr)
 	sys.exit(1)
-elif not threshold:
+
+if not threshold:
 	threshold = 20
+
+if not rep_thresh:
+	rep_thresh = 10
 
 
 # define functions
@@ -162,9 +171,9 @@ def parent_report(hybrid, alignment_name, total, parent1_list, parent2_list, par
 
 		# determine if there are multiple combos
 		if len(parent_list[1]) > 1:
-			if len(set(sum(parent_list[1], []))) > 4:		# more than 4 unique parents
-				output_list.append('>4')
-				output_list.append('>4')
+			if len(set(sum(parent_list[1], []))) > rep_thresh:		# more than x unique parents
+				output_list.append('>' + str(rep_thresh))
+				output_list.append('>' + str(rep_thresh))
 			else:
 				parenta_list = []
 				parentb_list = []
@@ -292,7 +301,7 @@ for entry in outlist:
 
 
 # if there is more than one locus, filter the results to also report locus counts for top parents
-# This only reports parents that were unambiguously top (e.g., ignores results wih >4)
+# This only reports parents that were unambiguously top (ignores results wih >x)
 if len(alignments) > 1:
 	print('\n\n')
 	print('\t'.join(['Hybrid', 'Loci', 'Loci_gt_thresh', 'count1', 'Parent1', 'count2',
@@ -308,7 +317,7 @@ if len(alignments) > 1:
 				if all(['-' not in result[3], int(result[2]) > 0]):
 					if (int(result[3]) / int(result[2])) * 100 >= threshold:
 						numloci_gt_thresh = numloci_gt_thresh + 1
-						if '>4' not in result[4]:
+						if '>' not in result[4]:
 							if '/' in result[4]:
 								top_parents.extend(result[4].split('/'))
 							else:
