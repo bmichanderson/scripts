@@ -56,7 +56,7 @@ if not rep_thresh:
 # define functions
 
 ## a function to separate specified hybrids from other samples in a multiple sequence alignment
-## It returns a list of two lists: a list of hybrid sequences, and a list of other sequences
+## It returns a list of two lists: a list of hybrid sequences, and a list of other sequences (+ hybrids)
 def process_alignment(alignment, hybrid_list):
 	hybrid_seqs = []
 	other_seqs = []
@@ -65,6 +65,7 @@ def process_alignment(alignment, hybrid_list):
 			hybrid_seqs.append(sequence)
 		else:
 			other_seqs.append(sequence)
+	other_seqs.extend(hybrid_seqs)		# in case a hybrid may be a parent
 	return([hybrid_seqs, other_seqs])
 
 
