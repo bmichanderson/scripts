@@ -2,7 +2,7 @@
 ##########
 # Author: Ben Anderson
 # Date: Nov 2022
-# Modified: April 2023, May 2023
+# Modified: April 2023, May 2023, July 2023
 # Description: convert a DNA alignment (fasta) or multiple alignments into a distance matrix (Nexus format)
 # Note: the resulting distance matrix will be saved as "dist_out.nex"
 ##########
@@ -141,7 +141,9 @@ for (alignment in alignments) {
 	if (pofad_method_set) {
 		# convert missing data to "?"
 		temp <- as.character(alignment)
-		temp[temp == "n"] <- "?"
+		for (subindex in seq_len(length(temp))) {
+			temp[[subindex]][temp[[subindex]] == "n"] <- "?"
+		}
 		alignment <- as.DNAbin(temp)
 		distances <- dist.snp(alignment, model = model)
 	} else {
