@@ -31,7 +31,7 @@ fastas = args.fastas
 
 
 # set up a list of IUPAC ambiguities  
-amb_list = ['K', 'k', 'M', 'm', 'R', 'r', 'S', 's', 'W', 'w', 'Y', 'y']
+amb_list = ['K', 'M', 'R', 'S', 'W', 'Y', 'V', 'H', 'D', 'B']
 
 
 # for each fasta (and entry within) report the counts  
@@ -45,21 +45,22 @@ for fasta_file in fastas:
 	with open(fasta_file, 'r') as infile:
 		entries = SeqIO.parse(infile, 'fasta')
 		for entry in entries:
-			unknown_length = entry.seq.count('N') + entry.seq.count('n') + entry.seq.count('-')
-			compare_length = len(entry.seq) - unknown_length
-			ambig_length = sum([entry.seq.count(ambig) for ambig in amb_list])
+			sequence = entry.seq.upper()
+			unknown_length = sequence.count('N') + sequence.count('-')
+			compare_length = len(sequence) - unknown_length
+			ambig_length = sum([sequence.count(ambig) for ambig in amb_list])
 			count_entries = count_entries + 1
 			if (compare_length > 0):
-				print('\t'.join([filename, entry.id, str(len(entry.seq)),
+				print('\t'.join([filename, entry.id, str(len(sequence)),
 					str(compare_length), str(ambig_length),
 					'%.2f' % (float(100*ambig_length)/compare_length)]))
 			else:
-				print('\t'.join([filename, entry.id, str(len(entry.seq)),
+				print('\t'.join([filename, entry.id, str(len(sequence)),
 					str(compare_length), str(ambig_length), 'N/A']))
-			seqs.append(entry.seq)
+			seqs.append(sequence)
 		if len(seqs) > 1:
 			cum_seq = Seq('').join(seqs)
-			unknown_length = cum_seq.count('N') + cum_seq.count('n') + cum_seq.count('-')
+			unknown_length = cum_seq.count('N') + cum_seq.count('-')
 			compare_length = len(cum_seq) - unknown_length
 			ambig_length = sum([cum_seq.count(ambig) for ambig in amb_list])
 			if (compare_length > 0):

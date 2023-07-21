@@ -63,6 +63,10 @@ with open(fasta_file, 'r') as align_file, open('consensus.fasta', 'w') as out_fi
 	alignment = AlignIO.read(align_file, 'fasta')
 	consensus = []
 
+	# convert to upper case
+	for entry in alignment:
+		entry.seq = entry.seq.upper()
+
 	# for each position, use the bases that are present at > threshold to determine the consensus
 	for pos in range(alignment.get_alignment_length()):
 		align_slice = alignment[:, pos]
