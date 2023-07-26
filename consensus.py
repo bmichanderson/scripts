@@ -3,7 +3,7 @@
 ##########################
 # Author: B. Anderson
 # Date: Jan 2019
-# Modified: Oct 2020, Jun 2023 (major)
+# Modified: Oct 2020, Jun 2023 (major), Jul 2023
 # Description: generate a simple consensus sequence from a fasta multiple sequence alignment given a threshold
 ##########################
 
@@ -68,32 +68,45 @@ with open(fasta_file, 'r') as align_file, open('consensus.fasta', 'w') as out_fi
 		entry.seq = entry.seq.upper()
 
 	# for each position, use the bases that are present at > threshold to determine the consensus
+	gaps = 0
 	for pos in range(alignment.get_alignment_length()):
 		align_slice = alignment[:, pos]
 		nbases = [nbase for nbase in align_slice if nbase in ['-', 'N']]
 		bases = [base for base in align_slice if base not in ['-', 'N']]
 		base_list = []
-		if float(bases.count('A') / len(bases)) > threshold:
-			base_list.append('A')
 
-		if float(bases.count('C') / len(bases)) > threshold:
-			base_list.append('C')
+		if len(bases) != 0:		# a residue is there
+			if float(bases.count('A') / len(bases)) > threshold:
+				base_list.append('A')
 
-		if float(bases.count('G') / len(bases)) > threshold:
-			base_list.append('G')
+			if float(bases.count('C') / len(bases)) > threshold:
+				base_list.append('C')
 
-		if float(bases.count('T') / len(bases)) > threshold:
-			base_list.append('T')
+			if float(bases.count('G') / len(bases)) > threshold:
+				base_list.append('G')
 
-		if any([len(base_list) == 0, len(nbases) > len(bases)]):		# no bases above threshold or more missing data than data
-			base = 'N'
-		elif len(base_list) == 1:	# a single base above threshold
-			base = base_list[0]
+			if float(bases.count('T') / len(bases)) > threshold:
+				base_list.append('T')
+
+			if  any([len(base_list) == 0, len(nbases) > len(bases)]):		# no bases above threshold or more missing data than data
+				base = 'N'
+			elif len(base_list) == 1:	# a single base above threshold
+				base = base_list[0]
+			else:
+				base = amb_dict[''.join(base_list)]
+
+			consensus.append(base)
+
+		elif 'N' in nbases:
+			consensus.append('N')
+
 		else:
-			base = amb_dict[''.join(base_list)]
-
-		consensus.append(base)
+			gaps = gaps + 1
 
 	# output the consensus sequence
 	new_record = SeqRecord(Seq(''.join(consensus)), id = 'consensus', name = 'consensus', description = 'consensus')
 	SeqIO.write(new_record, out_file, 'fasta')
+
+	# report if there were gaps removed
+	if gaps > 0:
+		print('Removed ' + str(gaps) + ' gap positions')
