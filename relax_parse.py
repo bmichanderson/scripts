@@ -71,46 +71,50 @@ for fileno, result_file in enumerate(results):
 # Go through the samples in the list and choose the best values for each sample
 # Determine the p-value significance and indicate it where appropriate
 # Round the K value
-# Count how many runs had K < 1 and how many had K > 1 (to assess bimodality)
+# Count how many significant runs had K < 1 and how many had K > 1 (to assess bimodality)
 out_list = []
 for taxon in taxa:
 	top_list = []
-	result_list = [item[1] for item in master_list if item[0] == taxon]	# grab the runs for that taxon
+	result_list = [item[1] for item in master_list if item[0] == taxon]		# grab the runs for that taxon
 	for index, gene in enumerate(gene_list):
 		if result_list[0][index * 3] == '-':		# gene missing
-			top_list.append(['-', '-', '-'])
+			top_list.append(['-', '-'])
 		else:
 			Kvals = [float(item[index * 3 + 0]) for item in result_list]
 			pvals = [float(item[index * 3 + 1]) for item in result_list]
 			Lvals = [float(item[index * 3 + 2]) for item in result_list]
 			# determine top likelihood and corresponding K and p for reporting
 			max_index = Lvals.index(max(Lvals))
-			top_K = round(Kvals[max_index], 1)
 			if pvals[max_index] < 0.05:
 				if pvals[max_index] < 0.01:
 					if pvals[max_index] < 0.001:
 						signif = '< 0.001'
+						top_K = str(round(Kvals[max_index], 1)) + '***'
 					else:
 						signif = '< 0.01'
+						top_K = str(round(Kvals[max_index], 1)) + '**'
 				else:
 					signif = '< 0.05'
+					top_K = str(round(Kvals[max_index], 1)) + '*'
 			else:
 				signif = 'n.s.'
-			# determine how many runs had divergent K values (< 1 and > 1)
-			count_greater = len([item for item in Kvals if item >= 1])
-			count_less = len([item for item in Kvals if item < 1])
-			count_blurb = str(count_less) + ' and ' + str(count_greater)
+				top_K = str(round(Kvals[max_index], 1))
+			# determine how many significant runs had divergent K values (< 1 and > 1)
+			sig_indices = [i for i, pval in enumerate(pvals) if pval < 0.05]
+			if len(sig_indices) == 0:		# no significant runs
+				count_blurb = 'n.s.'
+			else:
+				sig_Kvals = [Kvals[i] for i in sig_indices]
+				count_greater = len([item for item in sig_Kvals if item >= 1])
+				count_less = len([item for item in sig_Kvals if item < 1])
+				count_blurb = str(count_less) + '/' + str(count_greater) + \
+					' of ' + str(count_greater + count_less)
 			# record
-			top_list.append([str(top_K), signif, count_blurb])
+			top_list.append([top_K, count_blurb])
 	out_list.append([taxon, top_list])
 
 
-# Print the output as a CSV (can be directed to a file with `>`)
-print('Sample,' + ','.join([(item + ',' + item + ',' + item) for item in gene_list]))
+# Print the output as csv (can be directed to a file with ">")
+print('Sample,' + ','.join([(item + ',' + item) for item in gene_list]))
 for entry in out_list:
 	print(entry[0] + ',' + ','.join([','.join(item) for item in entry[1]]))
-
-
-
-## What about determining how many *significant* runs were < or > than 1?
-## What about altering the reported K to have a text field indicating significant to simplify it?
