@@ -1,355 +1,233 @@
 #######################
 # Author: B. Anderson
 # Date: 16 Mar 2020
-# Description: plot an input set of unrooted trees from RAxML, potentially rooting each on a specified outgroup taxon set
+# Modified: Nov 2023 (simplified and made more generally dependent on input text files)
+# Description: plot input Newick trees with ape, potentially rooting them
 #######################
 
-library(ape)
+
+# load library
+suppressMessages(library(ape))
 
 
 # a help function for when the script is called without arguments or incorrectly
-
 help <- function(help_message) {
-	cat("A script to plot a set of unrooted trees, or rooted if outgroups are specified.\n\n")
-	cat("Usage: Rscript plot_trees.R options(-... -...) tree_file1 tree_file2...\n\n")
-	cat("Options:\n")
-	cat("	-l	A file with labels of regions, one per line, for naming the input tree set (so same order as the trees).\n")
-	cat("	-o	A file with a list of outgroup taxa to use for rooting, with the preferred taxa first, one per line.\n")
-	cat("		These taxa names will be searched against tip labels and should ideally be found uniquely once.\n")
-	cat("	-t	A file with lists of taxa to colour (max 10 unless using your own colour pallete).\n")
-	cat("		The lists should be entered one per line, with each line receiving a different colour.\n")
-	cat("		Names in a list should be delimited by commas (',') e.g. Cau,Cca,Cgr\n")
-	cat("	-d	A table to be taken as a dataframe for equating taxa (if not tip labels) and tip labels.\n")
-	cat("		The table should be tab delimited, with the taxon from '-t' as the first column, and tip label as the second.\n")
-	cat("	-c	A file with a colour pallete, listing colours to use (one per line). Optional (defaults to a 10 colour pallete).\n")
-	cat("	-b	Bootstrap support level below which labels are not shown (default: 75).\n\n")
+	if (missing(help_message)) {
+		cat("A script to plot a set of unrooted trees, or rooted if outgroups are specified\n\n")
+		cat("Usage: Rscript plot_trees.R <options> tree_file1 tree_file2...\n")
+		cat("Options:\n")
+		cat("\t-b\tBootstrap support level below which labels are not displayed [optional]\n")
+		cat("\t-c\tColour pallete in a text file, listing taxon and colour (tab separated, one per line) [optional]\n")
+		cat("\t\tNote: needs a \"taxon\" entry in the samples file to know which to colour\n")
+		cat("\t-l\tLabels to title the trees in a text file (one per line, same order as the files) [optional]\n")
+		cat("\t-o\tOutgroup sampleIDs to use for rooting in a text file (one per line) [optional]\n")
+		cat("\t-s\tSampleIDs, display names, and taxa in a text file (tab separated, one per line) [optional]\n\n")
+	} else {
 	cat(help_message)
+	}
 }
 
 
 # parse the command line
-
 args <- commandArgs(trailingOnly = TRUE)
-
-if (length(args) == 0) {
-	stop(help("<This is where the error message will be printed>\n"), call.=FALSE)
+if (length(args) == 0) { # nolint
+	stop(help(), call. = FALSE)
 } else {
 	catch_args <- vector("list")
-	i <- 1
-
+	extra <- 1
+	catch <- TRUE
+	bootstrap <- 0
+	colours_present <- FALSE
+	colours_file <- ""
 	labels_present <- FALSE
 	labels_file <- ""
 	outgroup_present <- FALSE
 	outgroup_file <- ""
-	taxa_present <- FALSE
-	taxa_file <- ""
-	df_present <- FALSE
-	df_file <- ""
-	colours_present <- FALSE
-	colours_file <- ""
-	bootstrap <- 75
-
-	for (index in 1:length(args)) {
-		if (args[index] == "-l") {
+	samples_present <- FALSE
+	samples_file <- ""
+	for (index in seq_len(length(args))) {
+		if (args[index] == "-b") {
+			bootstrap <- as.numeric(args[index + 1])
+			catch <- FALSE
+		} else if (args[index] == "-c") {
+			colours_present <- TRUE
+			colours_file <- args[index + 1]
+			catch <- FALSE
+		} else if (args[index] == "-l") {
 			labels_present <- TRUE
 			labels_file <- args[index + 1]
+			catch <- FALSE
 		} else if (args[index] == "-o") {
 			outgroup_present <- TRUE
 			outgroup_file <- args[index + 1]
-		} else if (args[index] == "-t")  {
-			taxa_present <- TRUE
-			taxa_file <- args[index + 1]
-		} else if (args[index] == "-d")  {
-			df_present <- TRUE
-			df_file <- args[index + 1]
-		} else if (args[index] == "-c")  {
-			colours_present <- TRUE
-			colours_file <- args[index + 1]
-		} else if (args[index] == "-b")  {
-			bootstrap <- as.numeric(args[index + 1])
+			catch <- FALSE
+		} else if (args[index] == "-s")  {
+			samples_present <- TRUE
+			samples_file <- args[index + 1]
+			catch <- FALSE
 		} else {
-			catch_args[i] <- args[index]
-			i <- i + 1
+			if (catch) {
+				catch_args[extra] <- args[index]
+				extra <- extra + 1
+			} else {
+				catch <- TRUE
+			}
 		}
 	}
 }
-
-tree_file_list <- setdiff(catch_args, c(labels_file, outgroup_file, taxa_file, df_file, colours_file, bootstrap))	# exclude the options that were added to catch_args
-
-
-# read in and parse the optional files, if present
-
-if (labels_present) {
-	labels <- vector("list")
-	i <- 1
-
-	con <- file(labels_file, "r")
-	while (TRUE) {
-		line <- readLines(con, n = 1)
-		if (length(line) == 0) { break }
-		labels[i] <- line
-		i <- i + 1
-	}
-	close(con)
-
-	cat("Labels are:", unlist(labels), "\n")
+if (length(catch_args) < 1) {
+	stop(help("Missing tree file(s)!\n"), call. = FALSE)
 }
-
-if (outgroup_present) {
-	outgroups <- vector("list")
-	i <- 1
-
-	con <- file(outgroup_file, "r")
-	while (TRUE) {
-		line <- readLines(con, n = 1)
-		if (length(line) == 0) { break }
-		outgroups[i] <- line
-		i <- i + 1
-	}
-	close(con)
-
-	cat("Outgroups are:", unlist(outgroups), "\n")
-}
-
-if (taxa_present) {
-	tax_colour <- vector("list")
-	i <- 1
-
-	con <- file(taxa_file, "r")
-	while (TRUE) {
-		line <- readLines(con, n = 1)
-		if (length(line) == 0) { break }
-		tax_colour[i] <- strsplit(line, ",")
-		i <- i + 1
-	}
-	close(con)
-
-	cat("Taxa to colour are:", unlist(tax_colour), "\n")
-}
-
-
-if (df_present) {
-	df_table <- read.table(df_file, sep="\t", stringsAsFactors=FALSE)
-}
-
-
-if (colours_present) {
-	colours <- vector("list")
-	i <- 1
-
-	con <- file(colours_file, "r")
-	while (TRUE) {
-		line <- readLines(con, n = 1)
-		if (length(line) == 0) { break }
-		colours[i] <- line
-		i <- i + 1
-	}
-	close(con)
-
-	cat("Colours to use are:", unlist(colours), "\n")
-}
-
 
 cat("Bootstrap threshold for node label printing is", bootstrap, "\n")
 
 
-# establish a colour pallete
-
+# read in and parse the files
 if (colours_present) {
-	col_pal <- colours
-} else {
-	col_pal <- c('red', 'dodgerblue', 'gold', 'darkorange', 'burlywood', 'forestgreen', 'turquoise', 'saddlebrown', 'blueviolet', 'salmon')
-}
-
-
-# read in the trees
-
-tree_list <- vector("list")
-i <- 1
-
-for (tree_file in tree_file_list) { 
-	tree_list[[i]] <- read.tree(tree_file)
-	i <- i + 1
+	colour_table <- read.table(colours_file, sep = "\t", header = FALSE)
 }
 
 if (labels_present) {
-	i <- 1
+	labels <- read.table(labels_file, sep = "\t", header = FALSE)[, 1]
+	cat("Labels for tree titles are:", unlist(labels), "\n")
+}
+
+if (outgroup_present) {
+	outgroups <- read.table(outgroup_file, sep = "\t", header = FALSE)[, 1]
+	cat("Outgroups are:", unlist(outgroups), "\n")
+}
+
+if (samples_present) {
+	sample_table <- read.table(samples_file, sep = "\t", header = FALSE)
+	if (ncol(sample_table) == 2) {
+		colnames(sample_table) <- c("ID", "label")
+	} else if (ncol(sample_table) == 3) {
+		colnames(sample_table) <- c("ID", "label", "taxon")
+	} else {
+		stop(help("Samples table formatted improperly!\n"), call. = FALSE)
+	}
+}
+
+tree_list <- vector("list")
+for (index in seq_len(length(catch_args))) {
+	tree <- read.tree(catch_args[[index]])
+	tree_list[[index]] <- tree
+}
+
+
+# check that trees have enough titles, if provided, or generate automatically
+if (labels_present) {
 	if (length(labels) == length(tree_list)) {
-		for (tree in tree_list) {
-			tree$tree.names[1] <- labels[[i]]
-			tree_list[[i]] <- tree
-			i <- i + 1
+		for (index in seq_len(length(tree_list))) {
+			tree_list[[index]]$tree.names[1] <- labels[[index]]
 		}
 	} else {
-		stop(help("The number of trees and labels do not match!\n"), call.=FALSE)
+		stop(help("The number of trees and labels do not match!\n"), call. = FALSE)
+	}
+} else {
+	for (index in seq_len(length(tree_list))) {
+		tree_list[[index]]$tree.names[1] <- paste0("Tree ", index)
 	}
 }
 
 
 # root the trees if outgroups are present
-
-rooted_tree_list <- vector("list")
-i <- 1
-
-unrooted_tree_list <- vector("list")
-j <- 1
-
 if (outgroup_present) {
-	for (tree in tree_list) {
-		tree_taxa <- tree$tip.label
-		unrooted <- TRUE
-
-		for (outgroup in outgroups) {
-			if (length(grep(outgroup, tree_taxa)) > 0) {
-				rooted_tree_list[[i]] <- root(tree, tree_taxa[grep(outgroup, tree_taxa)], resolve.root = TRUE, edgelabel = TRUE)
-				i <- i + 1
-				unrooted <- FALSE
-				break
+	for (index in seq_len(length(tree_list))) {
+		if (sum(outgroups %in% tree_list[[index]]$tip.label) > 0) {
+			these_outgroups <- outgroups[outgroups %in% tree_list[[index]]$tip.label]
+			if (is.monophyletic(tree_list[[index]], as.character(these_outgroups))) {
+				rooted_tree <- root(tree_list[[index]], as.character(these_outgroups),
+					resolve.root = TRUE, edgelabel = TRUE)
+				tree_list[[index]] <- rooted_tree
+			} else {
+				cat("Tree", index, "does not have monophyletic outgroups, so it is not rooted\n")
 			}
-		}
-		
-		if (unrooted) {
-			unrooted_tree_list[[j]] <- tree
-			j <- j + 1
+		} else {
+			cat("Tree", index, "has no outgroups, so it is not rooted\n")
 		}
 	}
+}
 
-	cat("Trees rooted:", length(rooted_tree_list), ", Trees unrooted:", length(unrooted_tree_list), "\n")
 
+# Remove node labels if less than specified
+# also determine the tree with the most taxa for dimensions
+max_tips <- 0
+for (index in seq_len(length(tree_list))) {
+	for (index2 in seq_len(length(tree_list[[index]]$node.label))) {
+		if (tree_list[[index]]$node.label[index2] == "") {
+			tree_list[[index]]$node.label[index2] <- ""
+		} else if (tree_list[[index]]$node.label[index2] == "Root") {
+			tree_list[[index]]$node.label[index2] <- ""
+		} else if (as.numeric(tree_list[[index]]$node.label[index2]) < bootstrap) {
+			tree_list[[index]]$node.label[index2] <- ""
+		}
+	}
+	if (length(tree_list[[index]]$tip.label) > max_tips) {
+		max_tips <- length(tree_list[[index]]$tip.label)
+	}
+}
+
+
+# Set sample colours, modifying them if both a colours file is specified AND there is a taxon column in the samples file
+sample_table$colour <- rep("black", length(nrow(sample_table)))
+if (all(c(colours_present, ncol(sample_table) == 4))) {
+	for (taxon in unique(sample_table$taxon)) {
+		if (taxon %in% colour_table$V1) {
+			colour <- colour_table$V2[match(taxon, colour_table$V1)]
+			sample_table$colour[sample_table$taxon == taxon] <- colour
+		}
+	}
+}
+
+
+# Substitute labels and colours if a samples file is present
+tip_colours <- vector("list")
+if (samples_present) {
+	for (index in seq_len(length(tree_list))) {
+		tips <- tree_list[[index]]$tip.label
+		new_tips <- tips
+		tip_col <- rep("black", length(tips))
+		for (tind in seq_len(length(tips))) {
+			if (tips[tind] %in% sample_table$ID) {
+				new_tips[tind] <- sample_table$label[match(tips[tind], sample_table$ID)]
+				tip_col[tind] <- sample_table$colour[match(tips[tind], sample_table$ID)]
+			}
+		}
+		tree_list[[index]]$tip.label <- new_tips
+		tip_colours[[index]] <- tip_col
+	}
 } else {
-	
-	unrooted_tree_list <- tree_list
-
-	cat("Trees all unrooted:", length(unrooted_tree_list), "\n")
-	
+	for (index in seq_len(length(tree_list))) {
+		tip_colours[[index]] <- rep("black", length(tree_list[[index]]$tip.label))
+	}
 }
 
 
-# Remove node labels (bootstrap support) if less than specified bootstrap percentage (default 75)
-
-i <- 1
-for (tree in rooted_tree_list) {
-	for (index in 1: length(tree$node.label)) {
-		if (tree$node.label[index] == "") {
-			tree$node.label[index] <- ""
-		} else if (tree$node.label[index] == "Root") {
-			tree$node.label[index] <- ""
-		} else if (as.numeric(tree$node.label[index]) < bootstrap) {
-			tree$node.label[index] <- ""
-		}
-	}
-
-	rooted_tree_list[[i]] <- tree
-	i <- i + 1
+# Plot trees after determining dimensions
+max_height <- max(c(max_tips / 5, 12))
+pdf("trees.pdf", family = "ArialMT", width = (2 * max_height / 3), height = max_height)
+cat("Plotting", length(tree_list), "trees to pdf\n")
+for (index in seq_len(length(tree_list))) {
+	plot.phylo(ladderize(tree_list[[index]], right = FALSE),
+		no.margin = FALSE,
+		font = 1,
+		tip.col = tip_colours[[index]],
+		main = tree_list[[index]]$tree.names)
+	add.scale.bar(x = mean(par("usr")[1:2]), y = par("usr")[3] + 1, font = 1)
+	drawSupportOnEdges(tree_list[[index]]$node.label, adj = c(0.5, -0.5), frame = "none")
 }
+invisible(dev.off())
 
-j <- 1
-for (tree in unrooted_tree_list) {
-	for (index in 1: length(tree$node.label)) {
-		if (tree$node.label[index] == "") {
-			tree$node.label[index] <- ""
-		} else if (tree$node.label[index] == "Root") {
-			tree$node.label[index] <- ""
-		} else if (as.numeric(tree$node.label[index]) < bootstrap) {
-			tree$node.label[index] <- ""
-		}
-	}
-
-	unrooted_tree_list[[j]] <- tree
-	j <- j + 1
+for (index in seq_len(length(tree_list))) {
+	svg(paste0("trees_", index, ".svg"), family = "ArialMT", width = (2 * max_height / 3), height = max_height)
+	cat("Plotting Tree", index, "to svg\n")
+	plot.phylo(ladderize(tree_list[[index]], right = FALSE),
+		no.margin = FALSE,
+		font = 1,
+		tip.col = tip_colours[[index]],
+		main = tree_list[[index]]$tree.names)
+	add.scale.bar(x = mean(par("usr")[1:2]), y = par("usr")[3] + 1, font = 1)
+	drawSupportOnEdges(tree_list[[index]]$node.label, adj = c(0.5, -0.5), frame = "none")
+	invisible(dev.off())
 }
-
-
-# create a pdf and plot
-
-pdf("trees.pdf", family="ArialMT", pointsize=12, paper="A4", width=7.5, height=11)
-
-num_trees <- length(unrooted_tree_list) + length(rooted_tree_list)
-cat("Plotting", num_trees, "trees to pdf.\n")
-
-#if (num_trees > 8) {
-#	layout(matrix(1:8, 4, 2))
-#} else {
-#	layout(matrix(1:4, 2, 2))
-#}
-
-par(cex=0.75)
-
-if (taxa_present) {
-	for (tree in unrooted_tree_list) {
-		tree_taxa <- tree$tip.label
-
-		tip_col <- rep("black", length(tree_taxa))
-		i <- 1
-
-		for (tax_list in tax_colour) {
-			for (taxon in tax_list) {
-				if (df_present) {
-					taxa = df_table[grep(taxon, df_table$V1), 2]
-					for (tax in taxa) {
-						tip_col[grep(tax, tree_taxa)] <- col_pal[i]
-					}
-				} else {
-					tip_col[grep(taxon, tree_taxa)] <- col_pal[i]
-				}
-			}
-			i <- i + 1
-		}
-
-		plot.phylo(tree, "unrooted", lab4ut = "axial", tip.col = tip_col, main = tree$tree.names, show.node.label = TRUE)
-		add.scale.bar()
-
-	}
-
-
-	if (outgroup_present) {
-		for (tree in rooted_tree_list) {
-			tree_taxa <- tree$tip.label
-
-			tip_col <- rep("black", length(tree_taxa))
-			i <- 1
-
-			for (tax_list in tax_colour) {
-				for (taxon in tax_list) {
-					if (df_present) {
-						taxa = df_table[grep(taxon, df_table$V1), 2]
-						for (tax in taxa) {
-							tip_col[grep(tax, tree_taxa)] <- col_pal[i]
-						}
-					} else {
-						tip_col[grep(taxon, tree_taxa)] <- col_pal[i]
-					}
-				}
-				i <- i + 1
-			}
-
-			plot.phylo(tree, tip.col = tip_col, main = tree$tree.names, show.node.label = TRUE)
-			add.scale.bar()	
-
-		}
-
-	}
-
-} else {
-
-	for (tree in unrooted_tree_list) {
-		plot.phylo(tree, "unrooted", lab4ut = "axial", main = tree$tree.names, show.node.label = TRUE)
-		add.scale.bar()
-
-	}
-
-
-	if (outgroup_present) {
-		for (tree in rooted_tree_list) {
-			plot.phylo(tree, main = tree$tree.names, show.node.label = TRUE)
-			add.scale.bar()	
-
-		}
-
-	}
-
-
-}
-
-dev.off()
-
