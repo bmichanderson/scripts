@@ -1,7 +1,7 @@
 #######################
 # Author: B. Anderson
 # Date: 16 Mar 2020
-# Modified: Nov 2023 (simplified and made more generally dependent on input text files)
+# Modified: Nov 2023 (simplified and made more dependent on input text files)
 # Description: plot input Newick trees with ape, potentially rooting them
 #######################
 
@@ -13,15 +13,16 @@ suppressMessages(library(ape))
 # a help function for when the script is called without arguments or incorrectly
 help <- function(help_message) {
 	if (missing(help_message)) {
-		cat("A script to plot a set of unrooted trees, or rooted if outgroups are specified\n\n")
+		cat("A script to plot a set of unrooted Newick trees, or rooted if outgroups are specified\n\n")
 		cat("Usage: Rscript plot_trees.R <options> tree_file1 tree_file2...\n")
 		cat("Options:\n")
-		cat("\t-b\tBootstrap support level below which labels are not displayed [optional]\n")
-		cat("\t-c\tColour pallete in a text file, listing taxon and colour (tab separated, one per line) [optional]\n")
+		cat("\t-b\tBootstrap support level below which node labels are not displayed [optional]\n")
+		cat("\t-c\tColours for tips in a text file, listing taxon and colour (tab separated, one per line) [optional]\n")
 		cat("\t\tNote: needs a \"taxon\" entry in the samples file to know which to colour\n")
 		cat("\t-l\tLabels to title the trees in a text file (one per line, same order as the files) [optional]\n")
 		cat("\t-o\tOutgroup sampleIDs to use for rooting in a text file (one per line) [optional]\n")
-		cat("\t-s\tSampleIDs, display names, and taxa in a text file (tab separated, one per line) [optional]\n\n")
+		cat("\t-s\tSampleIDs, display names, and taxa in a text file (tab separated, one per line) [optional]\n")
+		cat("\t-svg\tFlag for whether to output an SVG file for each tree [default: do not]\n\n")
 	} else {
 	cat(help_message)
 	}
@@ -45,6 +46,7 @@ if (length(args) == 0) { # nolint
 	outgroup_file <- ""
 	samples_present <- FALSE
 	samples_file <- ""
+	svg_out <- FALSE
 	for (index in seq_len(length(args))) {
 		if (args[index] == "-b") {
 			bootstrap <- as.numeric(args[index + 1])
@@ -65,6 +67,8 @@ if (length(args) == 0) { # nolint
 			samples_present <- TRUE
 			samples_file <- args[index + 1]
 			catch <- FALSE
+		} else if (args[index] == "-svg")  {
+			svg_out <- TRUE
 		} else {
 			if (catch) {
 				catch_args[extra] <- args[index]
@@ -115,7 +119,7 @@ for (index in seq_len(length(catch_args))) {
 }
 
 
-# check that trees have enough titles, if provided, or generate automatically
+# check that trees have enough titles, if provided, or generate based on file name
 if (labels_present) {
 	if (length(labels) == length(tree_list)) {
 		for (index in seq_len(length(tree_list))) {
@@ -126,7 +130,7 @@ if (labels_present) {
 	}
 } else {
 	for (index in seq_len(length(tree_list))) {
-		tree_list[[index]]$tree.names[1] <- paste0("Tree ", index)
+		tree_list[[index]]$tree.names[1] <- basename(catch_args[[index]])
 	}
 }
 
@@ -141,10 +145,12 @@ if (outgroup_present) {
 					resolve.root = TRUE, edgelabel = TRUE)
 				tree_list[[index]] <- rooted_tree
 			} else {
-				cat("Tree", index, "does not have monophyletic outgroups, so it is not rooted\n")
+				cat("Tree", basename(catch_args[[index]]),
+					"does not have monophyletic outgroups, so it is not rooted\n")
 			}
 		} else {
-			cat("Tree", index, "has no outgroups, so it is not rooted\n")
+			cat("Tree", basename(catch_args[[index]]),
+				"has no outgroups, so it is not rooted\n")
 		}
 	}
 }
@@ -204,8 +210,9 @@ if (samples_present) {
 }
 
 
-# Plot trees after determining dimensions
+# Plot trees
 max_height <- max(c(max_tips / 5, 12))
+
 pdf("trees.pdf", family = "ArialMT", width = (2 * max_height / 3), height = max_height)
 cat("Plotting", length(tree_list), "trees to pdf\n")
 for (index in seq_len(length(tree_list))) {
@@ -214,20 +221,31 @@ for (index in seq_len(length(tree_list))) {
 		font = 1,
 		tip.col = tip_colours[[index]],
 		main = tree_list[[index]]$tree.names)
-	add.scale.bar(x = mean(par("usr")[1:2]), y = par("usr")[3] + 1, font = 1)
-	drawSupportOnEdges(tree_list[[index]]$node.label, adj = c(0.5, -0.5), frame = "none")
+	add.scale.bar(x = mean(par("usr")[1:2]),
+		y = par("usr")[3] + 0.02 * (par("usr")[4] - par("usr")[3]),
+		font = 1)
+	drawSupportOnEdges(tree_list[[index]]$node.label,
+		adj = c(0.5, -0.5),
+		frame = "none")
 }
 invisible(dev.off())
 
-for (index in seq_len(length(tree_list))) {
-	svg(paste0("trees_", index, ".svg"), family = "ArialMT", width = (2 * max_height / 3), height = max_height)
-	cat("Plotting Tree", index, "to svg\n")
-	plot.phylo(ladderize(tree_list[[index]], right = FALSE),
-		no.margin = FALSE,
-		font = 1,
-		tip.col = tip_colours[[index]],
-		main = tree_list[[index]]$tree.names)
-	add.scale.bar(x = mean(par("usr")[1:2]), y = par("usr")[3] + 1, font = 1)
-	drawSupportOnEdges(tree_list[[index]]$node.label, adj = c(0.5, -0.5), frame = "none")
-	invisible(dev.off())
+if (svg_out) {
+	for (index in seq_len(length(tree_list))) {
+		svg(paste0("tree_", index, ".svg"), family = "ArialMT",
+			width = (2 * max_height / 3), height = max_height)
+		cat("Plotting Tree", basename(catch_args[[index]]), "to svg\n")
+		plot.phylo(ladderize(tree_list[[index]], right = FALSE),
+			no.margin = FALSE,
+			font = 1,
+			tip.col = tip_colours[[index]],
+			main = tree_list[[index]]$tree.names)
+		add.scale.bar(x = mean(par("usr")[1:2]),
+			y = par("usr")[3] + 0.02 * (par("usr")[4] - par("usr")[3]),
+			font = 1)
+		drawSupportOnEdges(tree_list[[index]]$node.label,
+			adj = c(0.5, -0.5),
+			frame = "none")
+		invisible(dev.off())
+	}
 }
