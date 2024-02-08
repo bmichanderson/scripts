@@ -14,6 +14,8 @@ The outgroup file should have a single tip label per line
 The correspondence between sample IDs and sample labels should be in a tab-separated text file, one line per sample  
 ```{r}
 suppressMessages(library(ape))
+suppressMessages(library(phytools))
+suppressMessages(library(svglite))
 concat_tree <- "concat.treefile"
 concat_scf <- "concord_newick_scf.tre"
 concat_gcf <- "concord_newick_gcf.tre"
@@ -72,9 +74,11 @@ If there is an outgroup, root the trees
 ```{r}
 if (outgroup_present) {
 	for (index in seq_len(length(tree_list))) {
-		these_outgroups <- outgroups[outgroups %in% tree_list[[index]]$tip.label]
-		rooted_tree <- root(tree_list[[index]], as.character(these_outgroups),
-			resolve.root = TRUE, edgelabel = TRUE)
+		tree <- tree_list[[index]]
+		these_outgroups <- outgroups[outgroups %in% tree$tip.label]
+		rootnode <- getMRCA(tree, as.character(these_outgroups))
+		position <- 0.5 * tree$edge.length[which(tree$edge[, 2] == rootnode)]
+		rooted_tree <- reroot(tree, rootnode, position, edgelabel = TRUE)
 		tree_list[[index]] <- rooted_tree
 	}
 }
@@ -101,12 +105,12 @@ First, the concatenation tree
 
 Start a graphics device if wanting to output
 ```{r}
-svg("concat_out.svg", width = 28, height = 42)
+svglite("concat_out.svg", width = 28, height = 28)
 ```
 
-Or pdf if just wanting a quick plot
+Or pdf
 ```{r}
-pdf("concat_out.pdf", width = 28, height = 42)
+pdf("concat_out.pdf", width = 28, height = 42, family = "ArialMT")
 ```
 
 Plot the concat tree with edge lengths
@@ -198,12 +202,12 @@ Now for the ASTRAL tree
 
 Start a graphics device if wanting to output
 ```{r}
-svg("astral_out.svg", width = 22, height = 42)
+svglite("astral_out.svg", width = 22, height = 42)
 ```
 
-Or pdf if just wanting a quick plot
+Or pdf
 ```{r}
-pdf("astral_out.pdf", width = 22, height = 42)
+pdf("astral_out.pdf", width = 22, height = 42, family = "ArialMT")
 ```
 
 Plot the tree with edge lengths
@@ -283,9 +287,10 @@ invisible(dev.off())
 ```
 
 If running the polytomy test, plot other trees
+SVG
 ```{r}
 if (run_poly) {
-	svg("astral_poly_out.svg", width = 22, height = 42)
+	svglite("astral_poly_out.svg", width = 22, height = 42)
 	tree <- tree_list[[6]]
 	plot.phylo(ladderize(tree, right = FALSE),
 			no.margin = TRUE,
@@ -295,7 +300,32 @@ if (run_poly) {
 			edge.width = 3)
 	drawSupportOnEdges(tree$node.label, adj = c(0.5, -0.5), frame = "none")
 	invisible(dev.off())
-	svg("astral_poly_collapsed_out.svg", width = 22, height = 42)
+	svglite("astral_poly_collapsed_out.svg", width = 22, height = 42)
+	tree <- tree_list[[7]]
+	plot.phylo(ladderize(tree, right = FALSE),
+			no.margin = TRUE,
+			use.edge.length = FALSE,
+			node.depth = 2,
+			font = 1,
+			edge.width = 3)
+	drawSupportOnEdges(tree$node.label, adj = c(0.5, -0.5), frame = "none")
+	invisible(dev.off())
+}
+```
+Or pdf
+```{r}
+if (run_poly) {
+	pdf("astral_poly_out.pdf", width = 22, height = 42, family = "ArialMT")
+	tree <- tree_list[[6]]
+	plot.phylo(ladderize(tree, right = FALSE),
+			no.margin = TRUE,
+			use.edge.length = FALSE,
+			node.depth = 2,
+			font = 1,
+			edge.width = 3)
+	drawSupportOnEdges(tree$node.label, adj = c(0.5, -0.5), frame = "none")
+	invisible(dev.off())
+	pdf("astral_poly_collapsed_out.pdf", width = 22, height = 42, family = "ArialMT")
 	tree <- tree_list[[7]]
 	plot.phylo(ladderize(tree, right = FALSE),
 			no.margin = TRUE,
