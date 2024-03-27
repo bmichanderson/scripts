@@ -193,6 +193,20 @@ if (length(dist_list) > 1) {
 }
 
 
+# if the rownames have spaces (e.g. "G. alba"), need to quote for Nexus output
+space_present <- FALSE
+for (rowname in rownames(distances)) {
+	if (length(strsplit(rowname, " ")[[1]]) > 1) {
+		space_present <- TRUE
+		break
+	}
+}
+if (space_present) {
+	rownames(distances) <- paste0("'", rownames(distances), "'")
+	taxa <- paste0("'", taxa, "'")
+}
+
+
 # output the distance matrix in Nexus format
 taxa_block <- paste0("BEGIN TAXA;\n\tDIMENSIONS NTAX=", length(taxa), ";\n\t",
 	"TAXLABELS ", paste(taxa, collapse = " "), ";\nEND;\n")
