@@ -37,7 +37,7 @@ Read in the samples file
 ```{r}
 if (file.exists(samples_file)) {
 	samples_present <- TRUE
-	sample_table <- read.table(samples_file)
+	sample_table <- read.table(samples_file, sep = "\t")
 	colnames(sample_table) <- c("ID", "label")
 } else {
 	samples_present <- FALSE
@@ -110,7 +110,7 @@ svglite("concat_out.svg", width = 28, height = 28)
 
 Or pdf
 ```{r}
-pdf("concat_out.pdf", width = 28, height = 42, family = "ArialMT")
+pdf("concat_out_gcf.pdf", width = 28, height = 42, family = "ArialMT")
 ```
 
 Plot the concat tree with edge lengths
