@@ -84,6 +84,24 @@ if (outgroup_present) {
 }
 ```
 
+For later creation of figures, it may be desirable to get the tip order of ladderized trees (before labels are substituted)  
+This will output text files per tree, with sample IDs per line (order is from base of tree to top of page)  
+Based on: https://stackoverflow.com/a/34364914
+```{r}
+for (index in seq_len(length(tree_list))) {
+	lad_tree <- ladderize(tree_list[[index]], right = FALSE)
+	# determine which edges are tips and get the order
+	is_tip <- lad_tree$edge[, 2] <= length(lad_tree$tip.label)
+	ordered_tips <- lad_tree$edge[is_tip, 2]
+	# get the tips in order of plotting
+	output_ordered_ids <- lad_tree$tip.label[ordered_tips]
+	# write to a file
+	connection <- file(paste0("tips_tree", index, ".txt"))
+	writeLines(output_ordered_ids, connection)
+	close(connection)
+}
+```
+
 If there are sample labels, substitute them
 ```{r}
 if (samples_present) {
