@@ -16,7 +16,7 @@ from Bio import SeqIO
 
 # instantiate the parser
 parser = argparse.ArgumentParser(description = 'A script to extract a sequence from a fasta ' +
-	'given start and end coords (1-based and end-inclusive). Alternatively, specify a string to extract an entry ' + 
+	'given start and end coords (1-based and end-inclusive). Alternatively, specify a string to extract an entry ' +
 	'from a multifasta')
 
 
