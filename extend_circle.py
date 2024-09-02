@@ -23,6 +23,7 @@ parser = argparse.ArgumentParser(
 # add arguments to parse
 parser.add_argument('contig', type=str, help='The circular contig to extend')
 parser.add_argument('-b', type=int, dest='bps', help='How much to extend each end by (default 150)')
+parser.add_argument('-n', type=str, dest='ns', help='Whether to extend as Ns to pad a linear contig (yes or no [default])')
 
 
 # parse the command line
@@ -34,17 +35,24 @@ args = parser.parse_args()
 
 contig = args.contig
 bps = args.bps
+ns = args.ns
 
 
 # assign variables
 if not bps:
 	bps = 150
+if not ns:
+	ns = 'no'
 
 
 # create new extended fasta
 with open(contig, 'r') as contig_file, open('new_contig.fasta', 'w') as out_file:
 	fasta = SeqIO.read(contig_file, 'fasta')
-	add_front = fasta.seq[len(fasta.seq) - bps: ]		# add the end of the circle before the start
-	add_back = fasta.seq[0: bps]		# add the start of the circle to the end
-	fasta.seq = add_front + fasta.seq + add_back
+	if ns.lower() == 'yes':
+		fasta.seq = bps * 'N' + fasta.seq + bps * 'N'
+	else:
+		add_front = fasta.seq[len(fasta.seq) - bps: ]		# add the end of the circle before the start
+		add_back = fasta.seq[0: bps]		# add the start of the circle to the end
+		fasta.seq = add_front + fasta.seq + add_back
+
 	SeqIO.write(fasta, out_file, 'fasta')
