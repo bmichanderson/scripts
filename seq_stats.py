@@ -1,17 +1,18 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 #################
-# Author: B. Anderson
+# Author: B.M. Anderson
 # Date: 27 Apr 2020
 # Modified: May 2023 (add alignment length), Mar 2023 (add gaps),
 #	Nov 2020 (changed from proportion to percentage Ns), Oct 2022 (changed screen output format)
+#	Aug 2024 (update deprecated GC function)
 # Description: output basic sequence statistics for a set of input fasta files
 #################
 
 
 import sys
 from Bio import SeqIO
-from Bio.SeqUtils import GC
+from Bio.SeqUtils import gc_fraction
 from Bio.Seq import Seq
 
 
@@ -25,6 +26,11 @@ def help():
 # print help if the script is called without arguments
 if len(sys.argv[1:]) == 0:
 	sys.exit(help())
+
+
+# reconstruct a GC function (see https://github.com/nextgenusfs/funannotate/issues/1000#issue-2125508955)
+def GC(sequence):
+	return 100 * gc_fraction(sequence, ambiguous = 'ignore')
 
 
 # for each of the input files, read the sequence(s) then calculate and output stats
