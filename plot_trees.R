@@ -1,13 +1,14 @@
 #######################
-# Author: B. Anderson
+# Author: B.M. Anderson
 # Date: 16 Mar 2020
-# Modified: Nov 2023 (simplified and made more dependent on input text files)
+# Modified: Nov 2023 (simplified and made more dependent on input text files), Sep 2024
 # Description: plot input Newick trees with ape, potentially rooting them
 #######################
 
 
-# load library
+# load libraries
 suppressMessages(library(ape))
+suppressMessages(library(phytools))
 
 
 # a help function for when the script is called without arguments or incorrectly
@@ -121,16 +122,13 @@ for (index in seq_len(length(catch_args))) {
 
 # check that trees have enough titles, if provided, or generate based on file name
 if (labels_present) {
-	if (length(labels) == length(tree_list)) {
-		for (index in seq_len(length(tree_list))) {
-			tree_list[[index]]$tree.names[1] <- labels[[index]]
-		}
-	} else {
+	if (length(labels) != length(tree_list)) {
 		stop(help("The number of trees and labels do not match!\n"), call. = FALSE)
 	}
 } else {
+	labels <- vector("list")
 	for (index in seq_len(length(tree_list))) {
-		tree_list[[index]]$tree.names[1] <- basename(catch_args[[index]])
+		labels[[index]] <- basename(catch_args[[index]])
 	}
 }
 
@@ -141,8 +139,9 @@ if (outgroup_present) {
 		if (sum(outgroups %in% tree_list[[index]]$tip.label) > 0) {
 			these_outgroups <- outgroups[outgroups %in% tree_list[[index]]$tip.label]
 			if (is.monophyletic(tree_list[[index]], as.character(these_outgroups))) {
-				rooted_tree <- root(tree_list[[index]], as.character(these_outgroups),
-					resolve.root = TRUE, edgelabel = TRUE)
+				rootnode <- getMRCA(tree, as.character(these_outgroups))
+				position <- 0.5 * tree$edge.length[which(tree$edge[, 2] == rootnode)]
+				rooted_tree <- reroot(tree, rootnode, position, edgelabel = TRUE)
 				tree_list[[index]] <- rooted_tree
 			} else {
 				cat("Tree", basename(catch_args[[index]]),
@@ -176,12 +175,14 @@ for (index in seq_len(length(tree_list))) {
 
 
 # Set sample colours, modifying them if both a colours file is specified AND there is a taxon column in the samples file
-sample_table$colour <- rep("black", length(nrow(sample_table)))
-if (all(c(colours_present, ncol(sample_table) == 4))) {
-	for (taxon in unique(sample_table$taxon)) {
-		if (taxon %in% colour_table$V1) {
-			colour <- colour_table$V2[match(taxon, colour_table$V1)]
-			sample_table$colour[sample_table$taxon == taxon] <- colour
+if (samples_present) {
+	sample_table$colour <- rep("black", length(nrow(sample_table)))
+	if (all(c(colours_present, ncol(sample_table) == 4))) {
+		for (taxon in unique(sample_table$taxon)) {
+			if (taxon %in% colour_table$V1) {
+				colour <- colour_table$V2[match(taxon, colour_table$V1)]
+				sample_table$colour[sample_table$taxon == taxon] <- colour
+			}
 		}
 	}
 }
@@ -219,11 +220,13 @@ for (index in seq_len(length(tree_list))) {
 	plot.phylo(ladderize(tree_list[[index]], right = FALSE),
 		no.margin = FALSE,
 		font = 1,
+		edge.width = 2,
+		label.offset = max(nodeHeights(tree)) / 200,
 		tip.col = tip_colours[[index]],
-		main = tree_list[[index]]$tree.names)
+		main = labels[[index]])
 	add.scale.bar(x = mean(par("usr")[1:2]),
-		y = par("usr")[3] + 0.02 * (par("usr")[4] - par("usr")[3]),
-		font = 1)
+		y = par("usr")[3] + 1,
+		font = 1, lwd = 2)
 	drawSupportOnEdges(tree_list[[index]]$node.label,
 		adj = c(0.5, -0.5),
 		frame = "none")
@@ -238,11 +241,13 @@ if (svg_out) {
 		plot.phylo(ladderize(tree_list[[index]], right = FALSE),
 			no.margin = FALSE,
 			font = 1,
+			edge.width = 2,
+			label.offset = max(nodeHeights(tree)) / 200,
 			tip.col = tip_colours[[index]],
-			main = tree_list[[index]]$tree.names)
+			main = labels[[index]])
 		add.scale.bar(x = mean(par("usr")[1:2]),
-			y = par("usr")[3] + 0.02 * (par("usr")[4] - par("usr")[3]),
-			font = 1)
+			y = par("usr")[3] + 1,
+			font = 1, lwd = 2)
 		drawSupportOnEdges(tree_list[[index]]$node.label,
 			adj = c(0.5, -0.5),
 			frame = "none")
