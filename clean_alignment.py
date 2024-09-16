@@ -1,9 +1,12 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 ###############################################
-# Author: B. Anderson
+# Author: B.M. Anderson
 # Date: 12 Mar 2019
-# Modified: Mar 2023 (add sequence removal option), Jun 2021 (updated for phylip and using AlignIO, numpy and pandas), Oct 2020
+# Modified: Oct 2020
+# Modified: Jun 2021 (updated for phylip and using AlignIO, numpy and pandas)
+# Modified: Mar 2023 (add sequence removal option)
+# Modified: Sep 2024 (made default no filtering; updated for pandas function deprecation)
 # Description: read in an alignment and remove positions/sequences with more than a specified number or percentage of gaps or Ns
 ###############################################
 
@@ -18,8 +21,8 @@ from Bio.Align import MultipleSeqAlignment
 
 
 def help():
-	print('A script to remove positions/sequences in an alignment based on number/percentage gaps and Ns.')
-	print('One of -g or -p needs to be chosen; -g overrides -p.')
+	print('A script to remove positions/sequences in an alignment based on number/percentage of gaps and Ns.')
+	print('Choosing both a number and a percentage overrides the percentage.')
 	print('The cleaned alignment is output as a fasta/phylip file in the current directory.')
 	print('')
 	print('Usage: ' + str(sys.argv[0]) + ' options(-... -...) alignment')
@@ -27,11 +30,11 @@ def help():
 	print('Options:')
 	print('	-f	File type (fasta [default] or phylip)')
 	print('')
-	print('	-g	Maximum number of gaps and Ns allowed in the alignment at any position')
+	print('	-g	Maximum number of gaps and Ns allowed in the alignment at any position [default: no maximum]')
 	print('')
-	print('	-p	Maximum percentage (%) of gaps and Ns allowed in the alignment at any position')
+	print('	-p	Maximum percentage (%) of gaps and Ns allowed in the alignment at any position [default: 100]')
 	print('')
-	print('	-s	Maximum percentage (%) of gaps and Ns allowed in a sequence to keep it in the alignment [default: 100]')
+	print('	-s	Maximum percentage (%) of gaps and Ns allowed in a sequence to keep it (after gap filtering) [default: 100]')
 	print('')
 
 
@@ -129,7 +132,7 @@ if len_align > 500000:	# alignment is super large
 		rows = float(len(p_df))
 
 		# convert to upper case for search
-		p_df = p_df.applymap(upperit)
+		p_df = p_df.map(upperit)
 
 		# now we need to filter the dataframe by columns, to keep columns which pass filters
 		# from https://stackoverflow.com/questions/31614804/how-to-delete-a-column-in-pandas-dataframe-based-on-a-condition/31618820
@@ -138,7 +141,8 @@ if len_align > 500000:	# alignment is super large
 		elif gap_percent:
 			filtp_df = p_df.loc[:, (round(100*(p_df.eq('-').sum() + p_df.eq('N').sum())/rows, 0) <= perc_gaps)]
 		else:
-			sys.exit('Specify gap/N threshold')
+			# No gap/N threshold specified, so keeping all positions
+			filtp_df = p_df
 
 		# now that the dataframe is filtered, we need to convert it back into an alignment
 		new_records = []
@@ -186,7 +190,7 @@ else:		# alignment is reasonable size
 	rows = float(len(p_df))
 
 	# convert to upper case for search
-	p_df = p_df.applymap(upperit)
+	p_df = p_df.map(upperit)
 
 	# now we need to filter the dataframe by columns, to keep columns which pass filters
 	# from https://stackoverflow.com/questions/31614804/how-to-delete-a-column-in-pandas-dataframe-based-on-a-condition/31618820
@@ -195,7 +199,8 @@ else:		# alignment is reasonable size
 	elif gap_percent:
 		filtp_df = p_df.loc[:, (round(100*(p_df.eq('-').sum() + p_df.eq('N').sum())/rows, 0) <= perc_gaps)]
 	else:
-		sys.exit('Specify gap/N threshold')
+		print('No gap/N threshold specified, so keeping all positions')
+		filtp_df = p_df
 
 	# now that the dataframe is filtered, we need to convert it back into an alignment
 	new_records = []
