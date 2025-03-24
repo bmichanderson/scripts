@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
 ##########################
-# Author: B. Anderson
+# Author: B.M. Anderson
 # Date: Jan 2019
-# Modified: Oct 2020, Jun 2023 (major), Jul 2023
+# Modified: Oct 2020, Jun 2023 (major), Jul 2023, Mar 2025 (score Ns less frequently if base data above threshold)
 # Description: generate a simple consensus sequence from a fasta multiple sequence alignment given a threshold
 ##########################
 
@@ -88,7 +88,8 @@ with open(fasta_file, 'r') as align_file, open('consensus.fasta', 'w') as out_fi
 			if float(bases.count('T') / len(bases)) > threshold:
 				base_list.append('T')
 
-			if  any([len(base_list) == 0, len(nbases) > len(bases)]):		# no bases above threshold or more missing data than data
+			if  any([len(base_list) == 0, len(bases) / (len(nbases) + len(bases)) < threshold]):
+				# no bases above threshold or present data compared to total data less than threshold
 				base = 'N'
 			elif len(base_list) == 1:	# a single base above threshold
 				base = base_list[0]
