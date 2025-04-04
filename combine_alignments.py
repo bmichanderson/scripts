@@ -163,7 +163,7 @@ for entry in entry_list:
 			head = entry[1].description.split()
 			taxon = head[3] + ' ' + head[4]
 		else:
-			taxon = entry[1].description.strip()
+			taxon = entry[1].description.split()[0]		# just in case there is extra text
 		if taxon not in taxa_list:		# because it is set to be ignored
 			continue
 		if taxon in taxa_minilist:
@@ -184,7 +184,7 @@ for entry in entry_list:
 						missing.append(tentry[0])
 						new_fasta = SeqRecord(Seq('-' * length), id = 'gaps', name = 'gaps', description = 'gaps from ' +
 							tentry[1] + ' ' + tentry[0])
-						filtered_list.append([num, new_fasta])
+						filtered_list.append([tentry[0], [num, new_fasta]])
 						count = count + 1
 				else:
 					if tentry in taxa_minilist:
@@ -192,7 +192,7 @@ for entry in entry_list:
 					else:
 						missing.append(tentry)
 						new_fasta = SeqRecord(Seq('-' * length), id = tentry, name = tentry, description = tentry)
-						filtered_list.append([num, new_fasta])
+						filtered_list.append([tentry, [num, new_fasta]])
 						count = count + 1
 
 		if len(missing) > 0 and not format_single:
@@ -215,7 +215,7 @@ for entry in entry_list:
 			head = entry[1].description.split()
 			taxon = head[3] + ' ' + head[4]
 		else:
-			taxon = entry[1].description.strip()
+			taxon = entry[1].description.split()[0]
 		if taxon not in taxa_list:		# because it is set to be ignored
 			continue
 		if taxon in taxa_minilist:
