@@ -3,7 +3,7 @@
 ##########################
 # Author: B.M. Anderson
 # Date: 12 June 2020
-# Modified: Oct 2020, Mar 2021, Aug 2024
+# Modified: Oct 2020, Mar 2021, Aug 2024, Apr 2025 (adjust output fasta headers)
 # Description: extract a sequence from a fasta given start and end coordinates (1-based and end-inclusive) or
 #	extract an entry from a multifasta based on string matching
 ##########################
@@ -70,13 +70,11 @@ with open(fasta_file, 'r') as f_file, open('extract.fasta', 'w') as out_file:
 
 		if start < end:		# forward strand
 			fasta.seq = fasta.seq[(start - 1): end]
-			fasta.id = 'sequence_' + coords
-			fasta.description = 'sequence_' + coords + ' from ' + fasta.description
+			fasta.description = fasta.description + '_sequence_' + coords
 			SeqIO.write(fasta, out_file, 'fasta')
 		elif start > end:	# reverse strand
 			fasta.seq = fasta.seq[end-1: start].reverse_complement()
-			fasta.id = 'sequence_' + coords
-			fasta.description = 'sequence_' + coords + ' from ' + fasta.description
+			fasta.description = fasta.description + '_sequence_' + coords
 			SeqIO.write(fasta, out_file, 'fasta')
 		else:			# if they are equal
 			print('Please specify different start and end coordinates\n')
