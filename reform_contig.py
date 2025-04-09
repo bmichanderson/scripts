@@ -1,9 +1,9 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 ##########################
-# Author: B. Anderson
+# Author: B.M. Anderson
 # Date: 28-29 Jan 2019
-# Modified: Oct 2020
+# Modified: Oct 2020, Apr 2025 (turned off reporting of args)
 # Description: set the starting base position for a circular contig (arg 1) to a set value (arg 2) and optionally reverse complement the sequence
 ##########################
 
@@ -27,7 +27,7 @@ if len(sys.argv[1:]) > 1:
 			reverse_comp = 'no'
 	else:
 		reverse_comp = 'no'
-	print('Arguments are contig_fasta =  ' + str(sys.argv[1]) + ', start_position = ' + str(sys.argv[2]) + ', and reverse_comp = ' + reverse_comp)
+	#print('Arguments are contig_fasta = ' + str(sys.argv[1]) + ', start_position = ' + str(sys.argv[2]) + ', and reverse_comp = ' + reverse_comp)
 	start = int(sys.argv[2])
 else:
 	sys.exit(help())
