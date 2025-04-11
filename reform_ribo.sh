@@ -5,10 +5,11 @@
 # Date: Sept 2024
 # Modified: Apr 2025 (made pre-padding unnecessary, but there will always be Ns in output)
 # Description: Reform a nuclear ribosomal (18S–ITS–26S) fasta assembly contig using supplied reference sequences
-# Note: the script will keep up to 500 bp before 18S and beyond 26S (can be changed below with variable "retain")
+# Note: the script will keep up to 500 bp [default] before 18S and beyond 26S
 #	If assemblies are incomplete (no portions of either 18S or 26S), the script will attempt to orient
 #	with what is present; if both 18S and 26S are missing (no blast hits), the script will exit
 #	It requires NCBI tools (makeblastdb, blastn) and three Python scripts for fasta manipulation
+#	Call as: reform_ribo.sh assembly.fasta ref1.fasta ref2.fasta [500]
 #################
 
 
@@ -16,10 +17,6 @@
 extract_script=~/scripts/fasta_extract.py
 reform_script=~/scripts/reform_contig.py
 pad_script=~/scripts/extend_circle.py
-
-
-# set how many bases to keep (max) in front of 18S and beyond 26S
-retain=500
 
 
 # Define a help function for an incorrect or empty call
@@ -49,6 +46,14 @@ assembly=$(readlink -f "$1")
 ref1=$(readlink -f "$2")
 ref2=$(readlink -f "$3")
 
+
+# set how many bases to keep (max) in front of 18S and beyond 26S
+if [ "$#" -eq 4 ]; then
+	retain="$4"
+else
+	retain=500
+fi
+echo "Will retain $retain bases on either side of 18S and 26S"
 
 # Step 1: generate a BLAST database for the assembly in the working directory and blast against itself
 # Assuming it is unknown whether the sequence is circular, add 50 Ns to each side to
@@ -141,41 +146,32 @@ else		# hits to 18S
 		# Step 4: reset the start of the assembly to {retain} bases before the start of 18S
 		#	If 26S doesn't have enough bases beyond it, don't adjust
 		if [ $(echo "$len - $ref2_end" | bc) -lt "$retain" ]; then
-			echo "No need to reform"
+			if [ "$ref1_start" -lt $((retain + 1)) ]; then
+				echo "No need to reform"
+			else
+				new_start=$(echo "$ref1_start - $retain" | bc)
+				python3 "$reform_script" temp_ribo.fasta "$new_start" && mv new_contig.fasta temp_ribo.fasta
+			fi
 		elif [ "$ref1_start" -lt $((retain + 1)) ]; then
 			new_start=$(echo "$len - $retain - 1 + $ref1_start" | bc)
 			python3 "$reform_script" temp_ribo.fasta "$new_start" && mv new_contig.fasta temp_ribo.fasta
-
-			# Step 5: extract just the desired portion of the assembly
-			#	If the end is less than the desired retained bases beyond the end of 26S, don't alter
-			rm db*
-			makeblastdb -in temp_ribo.fasta -out db -dbtype nucl -logfile temp.log
-			blastn -query "$ref2" -db db -outfmt 6 > temp_blast_ref2.out
-			ref2_end=$(awk ' NR==1 {print $10} ' temp_blast_ref2.out)
-			if [ $(echo "$len - $ref2_end" | bc) -lt "$retain" ]; then
-				echo "No need to trim end"
-			else
-				new_end=$(echo "$ref2_end + $retain" | bc)
-				python3 "$extract_script" temp_ribo.fasta -c 1.."$new_end"
-				mv extract.fasta temp_ribo.fasta
-			fi
 		else
 			new_start=$(echo "$ref1_start - $retain" | bc)
 			python3 "$reform_script" temp_ribo.fasta "$new_start" && mv new_contig.fasta temp_ribo.fasta
+		fi
 
-			# Step 5: extract just the desired portion of the assembly
-			#	If the end is less than the desired retained bases beyond the end of 26S, don't alter
-			rm db*
-			makeblastdb -in temp_ribo.fasta -out db -dbtype nucl -logfile temp.log
-			blastn -query "$ref2" -db db -outfmt 6 > temp_blast_ref2.out
-			ref2_end=$(awk ' NR==1 {print $10} ' temp_blast_ref2.out)
-			if [ $(echo "$len - $ref2_end" | bc) -lt "$retain" ]; then
-				echo "No need to trim end"
-			else
-				new_end=$(echo "$ref2_end + $retain" | bc)
-				python3 "$extract_script" temp_ribo.fasta -c 1.."$new_end"
-				mv extract.fasta temp_ribo.fasta
-			fi
+		# Step 5: extract just the desired portion of the assembly
+		#	If the end is less than the desired retained bases beyond the end of 26S, don't alter
+		rm db*
+		makeblastdb -in temp_ribo.fasta -out db -dbtype nucl -logfile temp.log
+		blastn -query "$ref2" -db db -outfmt 6 > temp_blast_ref2.out
+		ref2_end=$(awk ' NR==1 {print $10} ' temp_blast_ref2.out)
+		if [ $(echo "$len - $ref2_end" | bc) -lt "$retain" ]; then
+			echo "No need to trim end"
+		else
+			new_end=$(echo "$ref2_end + $retain" | bc)
+			python3 "$extract_script" temp_ribo.fasta -c 1.."$new_end"
+			mv extract.fasta temp_ribo.fasta
 		fi
 	fi
 fi
