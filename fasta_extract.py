@@ -70,10 +70,12 @@ with open(fasta_file, 'r') as f_file, open('extract.fasta', 'w') as out_file:
 
 		if start < end:		# forward strand
 			fasta.seq = fasta.seq[(start - 1): end]
+			fasta.id = fasta.id + '_sequence_' + coords
 			fasta.description = fasta.description + '_sequence_' + coords
 			SeqIO.write(fasta, out_file, 'fasta')
 		elif start > end:	# reverse strand
 			fasta.seq = fasta.seq[end-1: start].reverse_complement()
+			fasta.id = fasta.id + '_sequence_' + coords
 			fasta.description = fasta.description + '_sequence_' + coords
 			SeqIO.write(fasta, out_file, 'fasta')
 		else:			# if they are equal
