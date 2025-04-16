@@ -1,8 +1,9 @@
 
 ##########
-# Author: Ben Anderson
+# Author: B.M. Anderson
 # Date: Nov 2022
-# Modified: April 2023, May 2023, July 2023
+# Modified: April 2023, May 2023, July 2023,
+# Apr 2025 (changed calculations and reporting to be more efficient for many alignments)
 # Description: convert a DNA alignment (fasta) or multiple alignments into a distance matrix (Nexus format)
 # Note: the resulting distance matrix will be saved as "dist_out.nex"
 ##########
@@ -16,14 +17,14 @@ suppressMessages(library(ape))
 help <- function(help_message) {
 	if (missing(help_message)) {
 		cat("A script to convert a DNA alignment (fasta) or multiple alignments into a distance matrix (Nexus)\n")
-		cat("Usage: Rscript align_to_distance.R [-m model] [-p pofadinr method] ",
+		cat("Usage: Rscript align_to_distance.R [-m model] [-p pofadinr method]",
 			"[-s samples] alignment.fasta [alignment2.fasta ...]\n")
 		cat("Options:\n")
-		cat("\t-m\tThe ape DNA distance model [default F84]\n")
+		cat("\t-m\tThe ape DNA distance model [default \"F84\"]\n")
 		cat("\t-a\tResolve ambiguous bases randomly before calculating distance in ape (\"y\" or \"n\" [default])\n")
 		cat("\t-p\tThe pofadinr nucleotide distance method (\"g\" for GENPOFAD, \"m\" for MATCHSTATES)\n")
 		cat("\t\tIf set, this will be the method used rather than ape dist.dna\n")
-		cat("\t-s\tA file with tab-separated sample IDs and corresponding tip labels for conversion, ",
+		cat("\t-s\tA file with tab-separated sample IDs and corresponding tip labels for conversion,",
 			"one per line [optional]\n")
 	} else {
 		cat(help_message)
@@ -85,30 +86,13 @@ for (index in seq_len(length(catch_args))) {
 }
 
 
-# capture taxa present; if samples file present, change the labels
+# capture taxa present
 taxa <- c()
-if (samples_present) {
-	renamed_alignments <- vector("list")
-	big_index <- 1
-	for (alignment in alignments) {
-		renamed_alignment <- alignment
-		for (index in seq_len(length(names(alignment)))) {
-			name <- names(alignment[index])
-			if (name %in% sample_table$V1) {
-				names(renamed_alignment)[index] <- sample_table$V2[match(name, sample_table$V1)]
-			}
-		}
-		renamed_alignments[[big_index]] <- renamed_alignment
-		big_index <- big_index + 1
-		taxa <- unique(c(taxa, names(renamed_alignment)))
-	}
-	alignments <- renamed_alignments
-} else {
-	for (alignment in alignments) {
-		taxa <- unique(c(taxa, names(alignment)))
-	}
+for (alignment in alignments) {
+	taxa <- unique(c(taxa, names(alignment)))
 }
-cat(paste0("\nRead in ", length(alignments), " alignments\n\n"))
+
+cat(paste0("\nRead in ", length(alignments), " alignments with ", length(taxa), " taxa\n\n"))
 
 
 # Set the method
@@ -134,9 +118,17 @@ if (pofad_method_set) {
 # for each alignment, calculate a distance matrix using the preferred method
 dist_list <- vector("list")
 index <- 1
-cat("\nProcessing alignment:")
+if (length(alignments) > 10000) {
+	increment <- 5000
+} else if (length(alignments) > 1000) {
+	increment <- 500
+} else if (length(alignments) > 100) {
+	increment <- 50
+} else {
+	increment <- 1
+}
+cat("\nProcessed alignment:")
 for (alignment in alignments) {
-	cat(paste0(" ", index))
 	# calculate the distances
 	if (pofad_method_set) {
 		# convert missing data to "?"
@@ -152,44 +144,88 @@ for (alignment in alignments) {
 		}
 		distances <- dist.dna(alignment, model = model, pairwise.deletion = TRUE)
 	}
-	dist_list[[index]] <- as.matrix(distances)
+
+	# adjust the matrix to ensure all taxa are present
+	# if there are missing taxa, create columns and rows of NAs for them
+	dist_mat <- as.matrix(distances)
+	for (taxon in taxa) {
+		if (! taxon %in% rownames(dist_mat)) {
+			curr_names <- rownames(dist_mat)
+			dist_mat <- rbind(cbind(dist_mat, rep(NA, nrow(dist_mat))), rep(NA, ncol(dist_mat) + 1))
+			rownames(dist_mat) <- c(curr_names, taxon)
+			colnames(dist_mat) <- c(curr_names, taxon)
+		}
+	}
+
+	# reorder to the order of taxa (ensuring same order across all matrices)
+	dist_mat <- dist_mat[taxa, taxa]
+
+	# add to the list
+	dist_list[[index]] <- dist_mat
+
+	# report progress and increment index
+	if (index %% increment == 0) {
+		cat(paste0(" ", index))
+	}
 	index <- index + 1
+}
+
+# report final index if not already reported
+if (index %% increment > 1) {
+	cat(paste0(" ", index - 1, "\n"))
+}
+
+
+# if there were many alignments, try to save memory usage and run in batches of 1000
+# see: https://stackoverflow.com/a/3321659
+if (index > 10000) {
+	batch_list <- vector("list")
+	batch_index <- 1
+	chunks <- split(dist_list, ceiling(seq_along(dist_list) / 1000))
+	rm(dist_list)
+	for (chunk in chunks) {
+		# since the matrices have the same dimensions and order, calculate means across matrices
+		# see: https://stackoverflow.com/a/19220503
+		cat(paste0("\nTransforming into an array for batch ", batch_index, "... "))
+		mat_array <- array(unlist(chunk), c(length(taxa), length(taxa), length(chunk)))
+		cat(paste0("Calculating the average distance matrix..."))
+		chunk_dist <- as.matrix(rowMeans(mat_array, dims = 2, na.rm = TRUE))
+		batch_list[[batch_index]] <- chunk_dist
+		batch_index <- batch_index + 1
+	}
+	dist_list <- batch_list
 }
 
 
 # if there was more than one alignment, calculate the average distance matrix
 if (length(dist_list) > 1) {
-	cat(paste0("\n\nCalculating the average distance matrix for ", length(taxa), " taxa...\n"))
-	dimensions <- length(taxa)
-	avg_matrix <- matrix(0, nrow = dimensions, ncol = dimensions)
-	rownames(avg_matrix) <- taxa
-	colnames(avg_matrix) <- taxa
-	for (index in seq_len(length(taxa))) {
-		cat(paste0(" ", index))
-		taxon <- taxa[index]
-		for (taxon_2 in tail(taxa, -index)) {
-			distances <- c()
-			found <- FALSE
-			for (dist_mat in dist_list) {
-				if (taxon %in% rownames(dist_mat) && taxon_2 %in% rownames(dist_mat)) {
-					distances <- c(distances, dist_mat[taxon, taxon_2])
-					found <- TRUE
-				} else {
-					distances <- c(distances, NA)
-				}
-			}
-			avg_dist <- mean(as.numeric(distances), na.rm = TRUE)
-			if (! found) {
-				cat(paste0("\nWarning: did not find a distance comparison for ", taxon,
-					" and ", taxon_2, "!\n"))
-			}
-			avg_matrix[taxon, taxon_2] <- avg_dist
-			avg_matrix[taxon_2, taxon] <- avg_dist
-		}
-	}
-	distances <- avg_matrix
+	# since the matrices have the same dimensions and order, calculate means across matrices
+	# see: https://stackoverflow.com/a/19220503
+	cat(paste0("\nTransforming into an array..."))
+	mat_array <- array(unlist(dist_list), c(length(taxa), length(taxa), length(dist_list)))
+	cat(paste0("\nCalculating the average distance matrix for ", length(taxa), " taxa...\n"))
+	distances <- as.matrix(rowMeans(mat_array, dims = 2, na.rm = TRUE))
+	rownames(distances) <- taxa
 } else {
 	distances <- as.matrix(dist_list[[1]])
+}
+
+
+# if there was a samples table provided, rename the taxa to match
+if (samples_present) {
+	for (index in seq_len(length(rownames(distances)))) {
+		name <- rownames(distances)[index]
+		taxon <- taxa[index]
+		if (name != taxon) {
+			cat(paste0("\nWARNING: coding error (shouldn't happen). The taxon ", name, " doesn't match the sort!\n"))
+		}
+		if (name %in% sample_table$V1) {
+			rownames(distances)[index] <- sample_table$V2[match(name, sample_table$V1)]
+			taxa[index] <- sample_table$V2[match(taxon, sample_table$V1)]
+		} else {
+			cat(paste0("\nWARNING: taxon ", name, " is missing from samples table and won't be renamed!\n"))
+		}
+	}
 }
 
 
