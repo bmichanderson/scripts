@@ -30,7 +30,7 @@ if len(sys.argv[1:]) == 0:
 
 # reconstruct a GC function (see https://github.com/nextgenusfs/funannotate/issues/1000#issue-2125508955)
 def GC(sequence):
-	return 100 * gc_fraction(sequence, ambiguous = 'ignore')
+	return 100 * gc_fraction(sequence, ambiguous = 'remove')
 
 
 # for each of the input files, read the sequence(s) then calculate and output stats
