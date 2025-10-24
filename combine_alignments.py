@@ -6,11 +6,13 @@
 # Modified: 30 Jan 2021 (added parser and flexibility for header info), April 2021 (adding support for generating a partitions file)
 #	Sep 2021 (added additional naming convention for broader applicability and made region names more flexible and a report for many alignments)
 #	Apr 2025 (added arg for search strings of taxa to drop; improved speed and efficiency for large numbers of alignments)
+#	Oct 2025 (changed file naming for when files aren't in the starting directory)
 # Description: combine fasta alignments for a single concatenated version with all desired taxa
 ################
 
 
 import sys
+import os
 import argparse
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
@@ -87,6 +89,7 @@ entry_list = []
 align_num = 1
 regions = []
 for multifasta in files:
+	filename = os.path.basename(multifasta)
 	with open(multifasta, 'r') as align:
 		fastas = SeqIO.parse(align, 'fasta')
 		len_list = []
@@ -98,9 +101,9 @@ for multifasta in files:
 			sys.exit('Problem with aligned sequence lengths for ' + multifasta)
 		else:
 			if format_original:
-				regions.append([align_num, multifasta.split('_')[1], len_list[0]])	# assuming files are named: align_region_...
+				regions.append([align_num, filename.split('_')[1], len_list[0]])	# assuming files are named: align_region_...
 			else:
-				regions.append([align_num, ''.join(multifasta.split('.')[:-1]), len_list[0]])	# strips out extension and uses file name for region
+				regions.append([align_num, os.path.splitext(filename)[0], len_list[0]])	# strips out extension and uses file name for region
 	align_num = align_num + 1
 
 
