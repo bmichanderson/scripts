@@ -6,7 +6,7 @@
 # Modified: 30 Jan 2021 (added parser and flexibility for header info), April 2021 (adding support for generating a partitions file)
 #	Sep 2021 (added additional naming convention for broader applicability and made region names more flexible and a report for many alignments)
 #	Apr 2025 (added arg for search strings of taxa to drop; improved speed and efficiency for large numbers of alignments)
-#	Oct 2025 (changed file naming for when files aren't in the starting directory)
+#	Oct 2025 (changed file naming for when files aren't in the starting directory; fixed bug for last locus missing)
 # Description: combine fasta alignments for a single concatenated version with all desired taxa
 ################
 
@@ -240,7 +240,7 @@ if len(taxa_minilist) != len(taxa_list):		# some missing taxa
 				missing.append(tentry[0])
 				new_fasta = SeqRecord(Seq('-' * length), id = 'gaps', name = 'gaps', description = 'gaps from ' +
 					tentry[1] + ' ' + tentry[0])
-				filtered_list.append([num, new_fasta])
+				filtered_list.append([tentry[0], [num, new_fasta]])
 				count = count + 1
 		else:
 			if tentry in taxa_minilist:
@@ -248,7 +248,7 @@ if len(taxa_minilist) != len(taxa_list):		# some missing taxa
 			else:
 				missing.append(tentry)
 				new_fasta = SeqRecord(Seq('-' * length), id = tentry, name = tentry, description = tentry)
-				filtered_list.append([num, new_fasta])
+				filtered_list.append([tentry, [num, new_fasta]])
 				count = count + 1
 
 if len(missing) > 0 and not format_single:
