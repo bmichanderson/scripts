@@ -1,39 +1,33 @@
 ---
-title: "Plot phylogenetic trees for sequence capture"
+title: "Plot phylogenetic trees for target sequence capture data"
 output: html_document
 ---
 
 This document describes the process of plotting phylogenetic trees for sequence capture output
 The trees need to be in Newick format and should be in the current directory
 
-Results from IQ-TREE and ASTRAL will have multiple node labels (concordance factors)
-To get the concordance trees into Newick properly, use `concord_to_newick.py`
+Results from IQ-TREE and ASTRAL will have multiple node labels (e.g. concordance factors)
+To get the concordance trees into Newick properly, use the script `concord_to_newick.py`
 Similarly, use `astral_parse.py` to separate node labels for ASTRAL (posterior probabilities and quartet support)
 
-The outgroup file should have a single tip label per line
-The correspondence between sample IDs and sample labels should be in a tab-separated text file, one line per sample
+The outgroup file (`outgroup.txt`) should have a single tip sample ID per line for the outgroups
+The samples file (`samples.txt`) should have sample IDs and display labels tab-separated, one line per sample
 ```{r}
 suppressMessages(library(ape))
 suppressMessages(library(phytools))
-suppressMessages(library(svglite))
 concat_tree <- "concat.treefile"
-concat_scf <- "concord_newick_scf.tre"
 concat_gcf <- "concord_newick_gcf.tre"
+concat_scf <- "concord_newick_scf.tre"
 astral_p <- "astral_p.tre"
 astral_q <- "astral_q.tre"
-outgroup_file <- "outgroup.txt"
-samples_file <- "samples.tab"
-run_poly <- FALSE
-```
-
-If running a polytomy test, add that output
-```{r}
-run_poly <- TRUE
 astral_t <- "astral_poly.tre"
 astral_tc <- "astral_poly_collapsed.tre"
+outgroup_file <- "outgroup.txt"
+samples_file <- "samples.txt"
 ```
 
-Read in the samples file
+# Read in data
+Read in the samples
 ```{r}
 if (file.exists(samples_file)) {
 	samples_present <- TRUE
@@ -44,7 +38,7 @@ if (file.exists(samples_file)) {
 }
 ```
 
-Read in the outgroups file
+Read in the outgroups
 ```{r}
 if (file.exists(outgroup_file)) {
 	outgroup_present <- TRUE
@@ -54,19 +48,37 @@ if (file.exists(outgroup_file)) {
 }
 ```
 
-Read in the tree files
+Read in the trees
 ```{r}
-c_tree <- read.tree(concat_tree)
-cs_tree <- read.tree(concat_scf)
-cg_tree <- read.tree(concat_gcf)
-ap_tree <- read.tree(astral_p)
-aq_tree <- read.tree(astral_q)
-if (run_poly) {
-	at_tree <- read.tree(astral_t)
-	atc_tree <- read.tree(astral_tc)
-	tree_list <- list(c_tree, cs_tree, cg_tree, ap_tree, aq_tree, at_tree, atc_tree)
-} else {
-	tree_list <- list(c_tree, cs_tree, cg_tree, ap_tree, aq_tree)
+tree_list <- vector("list", 7)
+index <- 1
+if (file.exists(concat_tree)) {
+	tree_list[[index]] <- read.tree(concat_tree)
+	index <- index + 1
+}
+if (file.exists(concat_gcf)) {
+	tree_list[[index]] <- read.tree(concat_gcf)
+	index <- index + 1
+}
+if (file.exists(concat_scf)) {
+	tree_list[[index]] <- read.tree(concat_scf)
+	index <- index + 1
+}
+if (file.exists(astral_p)) {
+	tree_list[[index]] <- read.tree(astral_p)
+	index <- index + 1
+}
+if (file.exists(astral_q)) {
+	tree_list[[index]] <- read.tree(astral_q)
+	index <- index + 1
+}
+if (file.exists(astral_t)) {
+	tree_list[[index]] <- read.tree(astral_t)
+	index <- index + 1
+}
+if (file.exists(astral_tc)) {
+	tree_list[[index]] <- read.tree(astral_tc)
+	index <- index + 1
 }
 ```
 
@@ -84,17 +96,14 @@ if (outgroup_present) {
 }
 ```
 
-For later creation of figures, it may be desirable to get the tip order of ladderized trees (before labels are substituted)  
-This will output text files per tree, with sample IDs per line (order is from base of tree to top of page, i.e. starting from the outgroup)  
+For later creation of figures, it may be desirable to get the tip order of ladderized trees (before labels are substituted)
+This will output text files per tree, with sample IDs per line (order is from base of tree to top of page, i.e. starting from the outgroup)
 Based on: https://stackoverflow.com/a/34364914
 ```{r}
-# we want tree 1 (concat), tree 4 (astral) and tree 7 (astral_poly_collapsed; if present)
-tree_names <- c("concat", "concat_site", "concat_gene", "astral", "astral_q", "astral_poly", "astral_poly_collapsed")
-if (run_poly) {
-	indices <- c(1, 4, 7)
-} else {
-	indices <- c(1, 4)
-}
+# select names of trees and indices in the list (depending on what files are present)
+tree_names <- c("concat", "astral", "astral_poly")
+indices <- c(1, 4, 7)
+iter <- 1
 for (index in indices) {
 	lad_tree <- ladderize(tree_list[[index]], right = FALSE)
 	# determine which edges are tips and get the order
@@ -103,10 +112,112 @@ for (index in indices) {
 	# get the tips in order of plotting
 	output_ordered_ids <- lad_tree$tip.label[ordered_tips]
 	# write to a file
-	connection <- file(paste0("tips_", tree_names[index], ".txt"))
+	connection <- file(paste0("tips_", tree_names[iter], ".txt"))
 	writeLines(output_ordered_ids, connection)
 	close(connection)
+	iter <- iter + 1
 }
+```
+
+# Grab support values
+Capture concordance factors from the files present (set the indices here)
+```{r}
+index_gcf <- 2
+index_scf <- 3
+concord_list <- vector("list", 2)
+
+# gene concordance factors
+tree <- tree_list[[index_gcf]]
+mydf <- data.frame(matrix(ncol = 4, nrow = tree$Nnode))
+index <- 1
+for (label in tree$node.label) {
+	if (any(label == "", label == "Root")) {
+		values <- c("", "", "", "")
+	} else {
+		values <- strsplit(label, split = "\\/")[[1]]
+	}
+	mydf[index, 1:4] <- values
+	index <- index + 1
+}
+concord_list[[1]] <- as.data.frame(lapply(mydf, as.numeric))
+
+# site concordance factors
+tree <- tree_list[[index_scf]]
+mydf <- data.frame(matrix(ncol = 3, nrow = tree$Nnode))
+index <- 1
+for (label in tree$node.label) {
+	if (any(label == "", label == "Root")) {
+		values <- c("", "", "")
+	} else {
+		values <- strsplit(label, split = "\\/")[[1]]
+	}
+	mydf[index, 1:3] <- values
+	index <- index + 1
+}
+concord_list[[2]] <- as.data.frame(lapply(mydf, as.numeric))
+```
+
+Capture ASTRAL posterior probabilities and quartet support (set indices here)
+```{r}
+index_astralp <- 4
+index_astralq <- 5
+astral_list <- vector("list", 2)
+
+# posterior probabilities
+tree <- tree_list[[index_astralp]]
+mydf <- data.frame(matrix(ncol = 1, nrow = tree$Nnode))
+index <- 1
+for (label in tree$node.label) {
+	if (any(label == "", label == "Root")) {
+		values <- c("")
+	} else {
+		values <- strsplit(label, split = "\\/")[[1]][1]
+	}
+	mydf[index, ] <- values
+	index <- index + 1
+}
+mydf <- as.data.frame(lapply(mydf, as.numeric))
+pps <- sapply(mydf[, 1], function(x) format(round(x, 2), nsmall = 2))
+pps[pps == "NA"] <- ""
+astral_list[[1]] <- pps
+
+# quartet support
+tree <- tree_list[[index_astralq]]
+mydf <- data.frame(matrix(ncol = 3, nrow = tree$Nnode))
+index <- 1
+for (label in tree$node.label) {
+	if (any(label == "", label == "Root")) {
+		values <- c("", "", "")
+	} else {
+		values <- strsplit(label, split = "\\/")[[1]]
+	}
+	mydf[index, 1:3] <- values
+	index <- index + 1
+}
+astral_list[[2]] <- as.data.frame(lapply(mydf, as.numeric))
+```
+
+# Plot trees
+Determine likely graphics parameters for the pages needed to display the trees
+(The page should probably not be smaller than about 8 wide x 11 tall)
+```{r}
+num_tips <- length(tree_list[[1]]$tip.label)
+# for Arial 12 point, each letter is ~ 1/6 inch; use roughly 1.5 times that (1/6 * 3/2 = 0.25)
+my_height <- num_tips * 0.25
+if (my_height < 11) {
+	my_height <- 11
+}
+# determine width so that it is narrower with more terminals
+my_width <- my_height * (0.8 - 0.001 * num_tips)
+# roughly set a "cex" value for displaying pie charts based on number of tips (and therefore width)
+my_cex <- 0.65 - 0.0025 * num_tips
+```
+
+It may be better to set these manually for your data and preference
+```{r}
+my_width <- 28
+my_height <- 42
+my_cex <- 0.25
 ```
 
 If there are sample labels, substitute them
@@ -125,61 +236,47 @@ if (samples_present) {
 }
 ```
 
-Determine likely graphics parameters for the pages needed to display the trees
-(The page should probably not be smaller than about 8 wide x 11 tall)
+## Concatenation  
+Set the name to call the file and trees (replace if needed)
 ```{r}
-num_tips <- length(tree_list[[1]]$tip.label)
-# for Arial 12 point, each letter is ~ 1/6 inch; we want to have a buffer of about 25%, so * 1.25
-my_height <- num_tips * 0.21
-if (my_height < 11) {
-	my_height <- 11
-}
-# determine width so that it is narrower with more terminals
-my_width <- my_height * (0.8 - 0.001 * num_tips)
-# roughly set a "cex" value for displaying pie charts based on number of tips (and therefore width)
-my_cex <- 0.65 - 0.002 * num_tips
+tree_name <- "concatenation_gcf"
+tree_index <- 1
+concord_index <- 1
 ```
-
-It may be better to set these manually for your data and preference
-```{r}
-my_width <- 28
-my_height <- 42
-my_cex <- 0.25
-```
-
-
-**Plot trees**
-
-First, the concatenation tree
 
 Start a graphics device if wanting to output
-(repeat if wanting a figure with, e.g., site concordance instead of gene concordance)
 ```{r}
-pdf("concat_out_gcf.pdf", width = my_width, height = my_height, family = "ArialMT")
+pdf(paste0(tree_name, ".pdf"), width = my_width, height = my_height, family = "ArialMT")
+# set margins
+par(mar = c(0.5, 0.5, 1, 0.5))
+par(oma = c(0, 0, 3, 0))
 ```
 
-Plot the concat tree with edge lengths
+Plot with edge lengths
 ```{r}
-tree <- tree_list[[1]]
+tree <- tree_list[[tree_index]]
 plot.phylo(ladderize(tree, right = FALSE),
-	no.margin = TRUE,
+	no.margin = FALSE,
 	font = 1,
 	edge.width = 2,
-	label.offset = max(nodeHeights(tree)) / 200)
+	label.offset = max(nodeHeights(tree)) / 200,
+	main = tree_name)
 add.scale.bar(x = mean(par("usr")[1:2]),
 	y = par("usr")[3] + 1,
 	font = 1,
 	lwd = 2)
 ```
-Or, if wanting to plot in the reverse orientation
+
+Or, plot in the reverse orientation
 ```{r}
-tree <- tree_list[[1]]
+tree <- tree_list[[tree_index]]
 plot.phylo(ladderize(tree, right = FALSE),
 	direction = "leftwards",
-	no.margin = TRUE,
+	no.margin = FALSE,
 	font = 1,
 	edge.width = 2,
-	label.offset = max(nodeHeights(tree)) / 200)
+	label.offset = max(nodeHeights(tree)) / 200,
+	main = tree_name)
 add.scale.bar(x = mean(par("usr")[1:2]),
 	y = par("usr")[3] + 1,
 	font = 1,
@@ -190,53 +287,21 @@ Plot node labels (UFbootstrap) on edges
 ```{r}
 drawSupportOnEdges(tree$node.label, adj = c(0.5, -0.5), frame = "none")
 ```
-Or, if wanting to plot node labels on nodes
+Or, plot node labels on nodes
 ```{r}
 nodelabels(tree$node.label, adj = c(-0.05, 0.5), frame = "none")
 ```
 
-Capture concordance factors
+Plot concordance as pie charts on nodes
 ```{r}
-tree <- tree_list[[2]]
-concord_df <- data.frame(matrix(ncol = 3, nrow = tree$Nnode))
-index <- 1
-for (label in tree$node.label) {
-	if (any(label == "", label == "Root")) {
-		values <- c("", "", "")
-	} else {
-		values <- strsplit(label, split = "\\/")[[1]]
-	}
-	concord_df[index, 1:3] <- values
-	index <- index + 1
+concord_df <- concord_list[[concord_index]]
+if (concord_index == 1) {
+	piecols <- c("white", "#c1c1c1", "#5b5a5a", "black")
+} else {
+	piecols <- c("white", "grey", "black")
 }
-concord_df <- as.data.frame(lapply(concord_df, as.numeric))
-
-tree <- tree_list[[3]]
-gconcord_df <- data.frame(matrix(ncol = 4, nrow = tree$Nnode))
-index <- 1
-for (label in tree$node.label) {
-	if (any(label == "", label == "Root")) {
-		values <- c("", "", "", "")
-	} else {
-		values <- strsplit(label, split = "\\/")[[1]]
-	}
-	gconcord_df[index, 1:4] <- values
-	index <- index + 1
-}
-gconcord_df <- as.data.frame(lapply(gconcord_df, as.numeric))
-```
-
-Plot as pie charts on nodes
-Site:
-```{r}
 nodelabels(pie = concord_df,
-	piecol = c("white", "grey", "black"),
-	cex = my_cex)
-```
-Gene:
-```{r}
-nodelabels(pie = gconcord_df,
-	piecol = c("white", "#c1c1c1", "#5b5a5a", "black"),
+	piecol = piecols,
 	cex = my_cex)
 ```
 
@@ -245,90 +310,68 @@ Stop creating the graphic
 invisible(dev.off())
 ```
 
-
-Now for the ASTRAL tree
+## ASTRAL
+Set the name to call the file and trees (replace if needed)
+```{r}
+tree_name <- "astral"
+tree_index <- 4
+```
 
 Start a graphics device if wanting to output
 ```{r}
-pdf("astral_out.pdf", width = my_width, height = my_height, family = "ArialMT")
+pdf(paste0(tree_name, ".pdf"), width = my_width, height = my_height, family = "ArialMT")
+# set margins
+par(mar = c(0.5, 0.5, 1, 0.5))
+par(oma = c(0, 0, 3, 0))
 ```
 
-Plot the tree with edge lengths
+Plot with edge lengths
 ```{r}
-tree <- tree_list[[4]]
+tree <- tree_list[[tree_index]]
 plot.phylo(ladderize(tree, right = FALSE),
-	no.margin = TRUE,
+	no.margin = FALSE,
 	font = 1,
 	edge.width = 2,
 	label.offset = max(nodeHeights(tree)) / 200,
-	x.lim =  max(nodeHeights(tree)) * 1.3)
+	x.lim =  max(nodeHeights(tree)) * 1.3,
+	main = tree_name)
 add.scale.bar(x = mean(par("usr")[1:2]),
 	y = par("usr")[3] + 1,
 	font = 1,
 	lwd = 2)
 ```
-Or, if wanting to plot in the reverse orientation
+
+Or plot in the reverse orientation
 ```{r}
-tree <- tree_list[[4]]
+tree <- tree_list[[tree_index]]
 plot.phylo(ladderize(tree, right = FALSE),
 	direction = "leftwards",
-	no.margin = TRUE,
+	no.margin = FALSE,
 	font = 1,
 	edge.width = 2,
 	label.offset = max(nodeHeights(tree)) / 200,
-	x.lim =  max(nodeHeights(tree)) * 1.3)
+	x.lim =  max(nodeHeights(tree)) * 1.3,
+	main = tree_name)
 add.scale.bar(x = mean(par("usr")[1:2]),
 	y = par("usr")[3] + 1,
 	font = 1,
 	lwd = 2)
-```
-
-Grab the posterior probabilities from the file for display
-```{r}
-pp_df <- data.frame(matrix(ncol = 1, nrow = tree$Nnode))
-index <- 1
-for (label in tree$node.label) {
-	if (any(label == "", label == "Root")) {
-		values <- c("")
-	} else {
-		values <- strsplit(label, split = "\\/")[[1]][1]
-	}
-	pp_df[index, ] <- values
-	index <- index + 1
-}
-pp_df <- as.data.frame(lapply(pp_df, as.numeric))
-pps <- sapply(pp_df[, 1], function(x) format(round(x, 2), nsmall = 2))
-pps[pps == "NA"] <- ""
 ```
 
 Plot node labels (posterior prob) on edges
 ```{r}
+pps <- astral_list[[1]]
 drawSupportOnEdges(pps, adj = c(0.5, -0.5), frame = "none")
 ```
-Or, if wanting to plot node labels on nodes
+Or, plot node labels on nodes
 ```{r}
+pps <- astral_list[[1]]
 nodelabels(pps, adj = c(-0.05, 0.5), frame = "none")
-```
-
-Capture quartet support to plot
-```{r}
-tree <- tree_list[[5]]
-quart_df <- data.frame(matrix(ncol = 3, nrow = tree$Nnode))
-index <- 1
-for (label in tree$node.label) {
-	if (any(label == "", label == "Root")) {
-		values <- c("", "", "")
-	} else {
-		values <- strsplit(label, split = "\\/")[[1]]
-	}
-	quart_df[index, 1:3] <- values
-	index <- index + 1
-}
-quart_df <- as.data.frame(lapply(quart_df, as.numeric))
 ```
 
 Plot quartet support as pie charts on nodes
 ```{r}
+quart_df <- astral_list[[2]]
 nodelabels(pie = quart_df,
 	piecol = c("white", "grey", "black"),
 	adj = 0.49,
@@ -340,59 +383,35 @@ Stop creating the graphic
 invisible(dev.off())
 ```
 
-
-If running the polytomy test, plot other trees
-
-The full tree with polytomy test results
+## ASTRAL_polytomy
+Set the name to call the file and trees (replace if needed, e.g. `astral_poly_collapse` and `7`)
+```{r}
+tree_name <- "astral_poly"
+tree_index <- 6
+```
 
 Start creating the graphic
 ```{r}
-pdf("astral_poly_out.pdf", width = my_width, height = my_height, family = "ArialMT")
+pdf(paste0(tree_name, ".pdf"), width = my_width, height = my_height, family = "ArialMT")
+# set margins
+par(mar = c(0.5, 0.5, 1, 0.5))
+par(oma = c(0, 0, 3, 0))
 ```
 
-Plot the tree
+Plot
 ```{r}
-tree <- tree_list[[6]]
+tree <- tree_list[[tree_index]]
 plot.phylo(ladderize(tree, right = FALSE),
-	no.margin = TRUE,
+	no.margin = FALSE,
 	use.edge.length = FALSE,
 	node.depth = 2,
 	font = 1,
 	edge.width = 2,
-	label.offset = 0.2)
+	label.offset = 0.2,
+	main = tree_name)
 ```
 
-Draw support
-```{r}
-drawSupportOnEdges(tree$node.label, adj = c(0.5, -0.5), frame = "none")
-```
-
-Stop creating the graphic
-```{r}
-invisible(dev.off())
-```
-
-
-The tree with branches failing the test collapsed
-
-Start creating the graphic
-```{r}
-pdf("astral_poly_collapsed.pdf", width = my_width, height = my_height, family = "ArialMT")
-```
-
-Plot the tree
-```{r}
-tree <- tree_list[[7]]
-plot.phylo(ladderize(tree, right = FALSE),
-	no.margin = TRUE,
-	use.edge.length = FALSE,
-	node.depth = 2,
-	font = 1,
-	edge.width = 2,
-	label.offset = 0.2)
-```
-
-Draw support (if desired)
+Plot node labels (test p values) on edges
 ```{r}
 drawSupportOnEdges(tree$node.label, adj = c(0.5, -0.5), frame = "none")
 ```
