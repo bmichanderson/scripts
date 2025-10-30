@@ -23,7 +23,8 @@ help <- function(help_message) {
 		cat("\t-l\tLabels to title the trees in a text file (one per line, same order as the files) [optional]\n")
 		cat("\t-o\tOutgroup sampleIDs to use for rooting in a text file (one per line) [optional]\n")
 		cat("\t-s\tSampleIDs, display names, and taxa in a text file (tab separated, one per line) [optional]\n")
-		cat("\t-svg\tFlag for whether to output an SVG file for each tree [default: do not]\n\n")
+		cat("\t-svg\tFlag for whether to output an SVG file for each tree [default: do not]\n")
+		cat("\t-w\tFlag for whether to write the tips in the order plotted, from base of tree up\n\n")
 	} else {
 	cat(help_message)
 	}
@@ -48,6 +49,7 @@ if (length(args) == 0) { # nolint
 	samples_present <- FALSE
 	samples_file <- ""
 	svg_out <- FALSE
+	write_tips <- FALSE
 	for (index in seq_len(length(args))) {
 		if (args[index] == "-b") {
 			bootstrap <- as.numeric(args[index + 1])
@@ -70,6 +72,8 @@ if (length(args) == 0) { # nolint
 			catch <- FALSE
 		} else if (args[index] == "-svg")  {
 			svg_out <- TRUE
+		} else if (args[index] == "-w")  {
+			write_tips <- TRUE
 		} else {
 			if (catch) {
 				catch_args[extra] <- args[index]
@@ -230,6 +234,19 @@ for (index in seq_len(length(tree_list))) {
 	drawSupportOnEdges(tree_list[[index]]$node.label,
 		adj = c(0.5, -0.5),
 		frame = "none")
+
+	if (write_tips) {
+		lad_tree <- ladderize(tree_list[[index]], right = FALSE)
+		# determine which edges are tips and get the order
+		is_tip <- lad_tree$edge[, 2] <= length(lad_tree$tip.label)
+		ordered_tips <- lad_tree$edge[is_tip, 2]
+		# get the tips in order of plotting
+		output_ordered_ids <- lad_tree$tip.label[ordered_tips]
+		# write to a file
+		connection <- file(paste0("tips_", index, ".txt"))
+		writeLines(output_ordered_ids, connection)
+		close(connection)
+	}
 }
 invisible(dev.off())
 
