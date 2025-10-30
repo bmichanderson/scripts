@@ -33,10 +33,10 @@ heatmapper <- function(dmat, palette = "greens", ...) {
 		main = expression("Heatmap"),
 		useRaster = TRUE)
 	axis(2, at = seq(0, 1, length.out = nrow(dmat)),
-		labels = rownames(dmat), las = 2, lwd.ticks = 0)
+		labels = rownames(dmat), las = 2, lwd.ticks = 0, cex.axis = 0.75)
 
-	# legend (still working on this)
-	subx <- grconvertX(c(1.1, 1.3), from = "user", to = "ndc")
+	# legend
+	subx <- grconvertX(c(1, 1.3), from = "user", to = "ndc")
 	suby <- grconvertY(c(0.9, 1), from = "user", to = "ndc")
 	op <- par(fig = c(subx, suby),
 		mar = c(0, 0, 0, 0),
@@ -44,38 +44,39 @@ heatmapper <- function(dmat, palette = "greens", ...) {
 	legend_colours <- as.raster(hcl.colors(n = 100, palette = palette))
 	range_min <- min(dmat, na.rm = TRUE)
 	range_max <- max(dmat, na.rm = TRUE)
-	if (range_max - range_min < 10) {
-		# might want to use a decimal place
+	full_range <- range_max - range_min
+	if (full_range < 1) {
+		mult <- 100
+		step <- 0.02
+		rnum <- 2
+	} else if (full_range < 5) {
 		mult <- 10
-		step <- round((range_max - range_min) / 5, 1)
+		step <- 0.5
 		rnum <- 1
-	} else {
-		# use integers
+	} else if (full_range < 20) {
 		mult <- 1
-		step <- round((range_max - range_min) / 50, 0) * 10
+		step <- 2
+		rnum <- 0
+	} else if (full_range < 40) {
+		mult <- 1
+		step <- 5
+		rnum <- 0
+	} else {
+		mult <- 0.1
+		step <- round((full_range) / 50, 0) * 10
 		rnum <- 0
 	}
-	digits <- floor(log10(range_max)) + 1
-	if (digits < 3) {
-		adjust <- 1
-	} else {
-		adjust <- digits - 2
-	}
-	legend_seq <- seq(ceiling(range_min * mult) / mult,
-		floor(range_max * mult) / mult,
-		by = step)
-	legend_seq <- floor(legend_seq / (10 ^ adjust)) * (10 ^ adjust)
-	if (legend_seq[1] < range_min) {
-		legend_seq <- legend_seq[2: length(legend_seq)]
-	}
+	start <- ceiling(range_min * mult) / mult
+	end <- floor(range_max * mult) / mult
+	legend_seq <- seq(start, end, by = step)
+
 	legend_labels <- format(round(legend_seq, rnum), nsmall = rnum)
 	plot(x = c(0, 2), y = c(0, 1), type = "n",
 		axes = FALSE, xlab = "", ylab = "", main = "")
-	axis(side = 4, at = (legend_seq - range_min) / (range_max - range_min), pos = 1, labels = FALSE,
+	axis(side = 4, at = (legend_seq - range_min) / full_range, pos = 1, labels = FALSE,
 		col = 0, col.ticks = 1)
-	mtext(legend_labels, side = 4, line = -0.5, at = (legend_seq - range_min) / (range_max - range_min), las = 2)
-	rasterImage(legend_colours, xleft = 0, ybottom = 0,
-		xright = 1, ytop = 1)
+	mtext(legend_labels, side = 4, line = -0.5, at = (legend_seq - range_min) / full_range, las = 2)
+	rasterImage(legend_colours, xleft = 0, ybottom = 0, xright = 1, ytop = 1)
 	par(op)
 }
 
@@ -133,7 +134,8 @@ if (my_width < 8) {
 # start creating a pdf
 pdf(paste0(out_pref, "_heatmap.pdf"), width = my_width, height = my_height, family = "ArialMT")
 # plot the heatmap
-par(mar = c(5, 4, 4, 6) + 0.1)
+par(mar = c(4, 6, 4, 6) + 0.1)
+par(oma = c(0, 5, 0, 0) + 0.1)
 heatmapper(dmat, palette = col_pal)
 # stop creating the pdf
 invisible(dev.off())
@@ -141,6 +143,7 @@ invisible(dev.off())
 
 # similarly, a png
 png(paste0(out_pref, "_heatmap.png"), width = my_width, height = my_height, units = "in", res = 600)
-par(mar = c(5, 4, 4, 6) + 0.1)
+par(mar = c(4, 6, 4, 6) + 0.1)
+par(oma = c(0, 5, 0, 0) + 0.1)
 heatmapper(dmat, palette = col_pal)
 invisible(dev.off())
