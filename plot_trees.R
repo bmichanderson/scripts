@@ -140,16 +140,25 @@ if (labels_present) {
 # root the trees if outgroups are present
 if (outgroup_present) {
 	for (index in seq_len(length(tree_list))) {
-		if (sum(outgroups %in% tree_list[[index]]$tip.label) > 0) {
-			these_outgroups <- outgroups[outgroups %in% tree_list[[index]]$tip.label]
-			if (is.monophyletic(tree_list[[index]], as.character(these_outgroups))) {
-				rootnode <- getMRCA(tree, as.character(these_outgroups))
+		tree <- tree_list[[index]]
+		if (sum(outgroups %in% tree$tip.label) > 0) {
+			these_outgroups <- outgroups[outgroups %in% tree$tip.label]
+			if (length(these_outgroups) > 1) {
+				if (is.monophyletic(tree, as.character(these_outgroups))) {
+					rootnode <- getMRCA(tree, as.character(these_outgroups))
+					position <- 0.5 * tree$edge.length[which(tree$edge[, 2] == rootnode)]
+					rooted_tree <- reroot(tree, rootnode, position, edgelabel = TRUE)
+					tree_list[[index]] <- rooted_tree
+				} else {
+					cat("Tree", basename(catch_args[[index]]),
+						"does not have monophyletic outgroups, so it is not rooted\n")
+				}
+			} else {
+				tip_number <- which(tree$tip.label == these_outgroups)
+				rootnode <- tree$edge[tree$edge[, 2] == tip_number, 1]
 				position <- 0.5 * tree$edge.length[which(tree$edge[, 2] == rootnode)]
 				rooted_tree <- reroot(tree, rootnode, position, edgelabel = TRUE)
 				tree_list[[index]] <- rooted_tree
-			} else {
-				cat("Tree", basename(catch_args[[index]]),
-					"does not have monophyletic outgroups, so it is not rooted\n")
 			}
 		} else {
 			cat("Tree", basename(catch_args[[index]]),
