@@ -3,7 +3,8 @@
 # Author: B.M. Anderson
 # Date: Nov 2022
 # Modified: April 2023, May 2023, July 2023,
-# Apr 2025 (changed calculations and reporting to be more efficient for many alignments)
+# Apr 2025 (changed calculations and reporting to be more efficient for many alignments),
+# Feb 2026 (adjusted so distance averaging occurs by chunk to avoid memory issues with very large datasets >10,000 loci)
 # Description: convert a DNA alignment (fasta) or multiple alignments into a distance matrix (Nexus format)
 # Note: the resulting distance matrix will be saved as "dist_out.nex"
 ##########
@@ -118,8 +119,12 @@ if (pofad_method_set) {
 # for each alignment, calculate a distance matrix using the preferred method
 dist_list <- vector("list")
 index <- 1
+big_data <- FALSE
+batch_index <- 1
+batch_list <- vector("list")
 if (length(alignments) > 10000) {
 	increment <- 5000
+	big_data <- TRUE
 } else if (length(alignments) > 1000) {
 	increment <- 500
 } else if (length(alignments) > 100) {
@@ -165,35 +170,52 @@ for (alignment in alignments) {
 
 	# report progress and increment index
 	if (index %% increment == 0) {
-		cat(paste0(" ", index))
+		if (big_data) {
+			# if there are many alignments, try to save memory usage and run in batches of 1000
+			# see: https://stackoverflow.com/a/3321659
+			chunks <- split(dist_list, ceiling(seq_along(dist_list) / 1000))
+			rm(dist_list)
+			gc()		# garbage cleanup
+			for (chunk in chunks) {
+				# since the matrices have the same dimensions and order, calculate means across matrices
+				# see: https://stackoverflow.com/a/19220503
+				mat_array <- array(unlist(chunk), c(length(taxa), length(taxa), length(chunk)))
+				chunk_dist <- as.matrix(rowMeans(mat_array, dims = 2, na.rm = TRUE))
+				batch_list[[batch_index]] <- chunk_dist
+				batch_index <- batch_index + 1
+			}
+			index <- 0
+			dist_list <- vector("list")
+			cat(paste0(" ", (batch_index - 1) * 1000))
+		} else {
+			cat(paste0(" ", index))
+		}
 	}
 	index <- index + 1
 }
 
 # report final index if not already reported
+# if many alignments, measure the remaining that haven't been added to the batch_list
+# note: this will be slightly inaccurate for big data because the last chunk will have a smaller length
 if (index %% increment > 1) {
-	cat(paste0(" ", index - 1, "\n"))
-}
-
-
-# if there were many alignments, try to save memory usage and run in batches of 1000
-# see: https://stackoverflow.com/a/3321659
-if (index > 10000) {
-	batch_list <- vector("list")
-	batch_index <- 1
-	chunks <- split(dist_list, ceiling(seq_along(dist_list) / 1000))
-	rm(dist_list)
-	for (chunk in chunks) {
-		# since the matrices have the same dimensions and order, calculate means across matrices
-		# see: https://stackoverflow.com/a/19220503
-		cat(paste0("\nTransforming into an array for batch ", batch_index, "... "))
-		mat_array <- array(unlist(chunk), c(length(taxa), length(taxa), length(chunk)))
-		cat(paste0("Calculating the average distance matrix..."))
-		chunk_dist <- as.matrix(rowMeans(mat_array, dims = 2, na.rm = TRUE))
-		batch_list[[batch_index]] <- chunk_dist
-		batch_index <- batch_index + 1
+	if (big_data) {
+		chunks <- split(dist_list, ceiling(seq_along(dist_list) / 1000))
+		rm(dist_list)
+		for (chunk in chunks) {
+			mat_array <- array(unlist(chunk), c(length(taxa), length(taxa), length(chunk)))
+			chunk_dist <- as.matrix(rowMeans(mat_array, dims = 2, na.rm = TRUE))
+			batch_list[[batch_index]] <- chunk_dist
+			batch_index <- batch_index + 1
+		}
+		dist_list <- batch_list
+		cat(paste0(" ", (batch_index - 1) * 1000 + (index %% 1000) - 1, "\n"))
+	} else {
+		cat(paste0(" ", index - 1, "\n"))
 	}
-	dist_list <- batch_list
+} else {
+	if (big_data) {
+		dist_list <- batch_list
+	}
 }
 
 
