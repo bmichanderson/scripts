@@ -2,6 +2,7 @@
 # Author: B.M. Anderson
 # Date: 16 Mar 2020
 # Modified: Nov 2023 (simplified and made more dependent on input text files), Sep 2024
+#	Feb 2026 (added cladogram option and associated rooting without edge lengths)
 # Description: plot input Newick trees with ape, potentially rooting them
 #######################
 
@@ -24,7 +25,8 @@ help <- function(help_message) {
 		cat("\t-o\tOutgroup sampleIDs to use for rooting in a text file (one per line) [optional]\n")
 		cat("\t-s\tSampleIDs, display names, and taxa in a text file (tab separated, one per line) [optional]\n")
 		cat("\t-svg\tFlag for whether to output an SVG file for each tree [default: do not]\n")
-		cat("\t-w\tFlag for whether to write the tips in the order plotted, from base of tree up\n\n")
+		cat("\t-w\tFlag for whether to write the tips in the order plotted, from base of tree up\n")
+		cat("\t-clado\tFlag for whether to plot as cladograms (no meaning to branch lengths) [default: do not]\n\n")
 	} else {
 	cat(help_message)
 	}
@@ -50,6 +52,7 @@ if (length(args) == 0) { # nolint
 	samples_file <- ""
 	svg_out <- FALSE
 	write_tips <- FALSE
+	plot_clado <- FALSE
 	for (index in seq_len(length(args))) {
 		if (args[index] == "-b") {
 			bootstrap <- as.numeric(args[index + 1])
@@ -74,6 +77,8 @@ if (length(args) == 0) { # nolint
 			svg_out <- TRUE
 		} else if (args[index] == "-w")  {
 			write_tips <- TRUE
+		} else if (args[index] == "-clado")  {
+			plot_clado <- TRUE
 		} else {
 			if (catch) {
 				catch_args[extra] <- args[index]
@@ -146,18 +151,27 @@ if (outgroup_present) {
 			if (length(these_outgroups) > 1) {
 				if (is.monophyletic(tree, as.character(these_outgroups))) {
 					rootnode <- getMRCA(tree, as.character(these_outgroups))
-					position <- 0.5 * tree$edge.length[which(tree$edge[, 2] == rootnode)]
-					rooted_tree <- reroot(tree, rootnode, position, edgelabel = TRUE)
+					if (plot_clado) {
+						rooted_tree <- root(tree, node = rootnode, resolve.root = TRUE)
+					} else {
+						rootnode <- getMRCA(tree, as.character(these_outgroups))
+						position <- 0.5 * tree$edge.length[which(tree$edge[, 2] == rootnode)]
+						rooted_tree <- reroot(tree, rootnode, position, edgelabel = TRUE)
+					}
 					tree_list[[index]] <- rooted_tree
 				} else {
 					cat("Tree", basename(catch_args[[index]]),
 						"does not have monophyletic outgroups, so it is not rooted\n")
 				}
 			} else {
-				tip_number <- which(tree$tip.label == these_outgroups)
-				rootnode <- tree$edge[tree$edge[, 2] == tip_number, 1]
-				position <- 0.5 * tree$edge.length[which(tree$edge[, 2] == rootnode)]
-				rooted_tree <- reroot(tree, rootnode, position, edgelabel = TRUE)
+				if (plot_clado) {
+					rooted_tree <- root(tree, as.character(these_outgroups), resolve.root = TRUE)
+				} else {
+					tip_number <- which(tree$tip.label == these_outgroups)
+					rootnode <- tree$edge[tree$edge[, 2] == tip_number, 1]
+					position <- 0.5 * tree$edge.length[which(tree$edge[, 2] == rootnode)]
+					rooted_tree <- reroot(tree, rootnode, position, edgelabel = TRUE)
+				}
 				tree_list[[index]] <- rooted_tree
 			}
 		} else {
@@ -230,19 +244,42 @@ max_height <- max(c(max_tips / 5, 12))
 pdf("trees.pdf", family = "ArialMT", width = (2 * max_height / 3), height = max_height)
 cat("Plotting", length(tree_list), "trees to pdf\n")
 for (index in seq_len(length(tree_list))) {
-	plot.phylo(ladderize(tree_list[[index]], right = FALSE),
-		no.margin = FALSE,
-		font = 1,
-		edge.width = 2,
-		label.offset = max(nodeHeights(tree)) / 200,
-		tip.col = tip_colours[[index]],
-		main = labels[[index]])
-	add.scale.bar(x = mean(par("usr")[1:2]),
-		y = par("usr")[3] + 1,
-		font = 1, lwd = 2)
-	drawSupportOnEdges(tree_list[[index]]$node.label,
-		adj = c(0.5, -0.5),
-		frame = "none")
+	if (plot_clado) {
+		plot.phylo(ladderize(tree_list[[index]], right = FALSE),
+			no.margin = FALSE,
+			font = 1,
+			edge.width = 2,
+			label.offset = 0.1,
+			use.edge.length = FALSE,
+			node.depth = 2,
+			tip.col = tip_colours[[index]],
+			main = labels[[index]])
+		if (is.null(tree_list[[index]]$node.label)) {
+			cat("No nade labels detected\n")
+		} else {
+			drawSupportOnEdges(tree_list[[index]]$node.label,
+				adj = c(0.5, -0.5),
+				frame = "none")
+		}
+	} else {
+		plot.phylo(ladderize(tree_list[[index]], right = FALSE),
+			no.margin = FALSE,
+			font = 1,
+			edge.width = 2,
+			label.offset = max(nodeHeights(tree)) / 200,
+			tip.col = tip_colours[[index]],
+			main = labels[[index]])
+		add.scale.bar(x = mean(par("usr")[1:2]),
+			y = par("usr")[3] + 1,
+			font = 1, lwd = 2)
+		if (is.null(tree_list[[index]]$node.label)) {
+			cat("No nade labels detected\n")
+		} else {
+			drawSupportOnEdges(tree_list[[index]]$node.label,
+				adj = c(0.5, -0.5),
+				frame = "none")
+		}
+	}
 
 	if (write_tips) {
 		lad_tree <- ladderize(tree_list[[index]], right = FALSE)
@@ -264,19 +301,42 @@ if (svg_out) {
 		svg(paste0("tree_", index, ".svg"), family = "ArialMT",
 			width = (2 * max_height / 3), height = max_height)
 		cat("Plotting Tree", basename(catch_args[[index]]), "to svg\n")
-		plot.phylo(ladderize(tree_list[[index]], right = FALSE),
-			no.margin = FALSE,
-			font = 1,
-			edge.width = 2,
-			label.offset = max(nodeHeights(tree)) / 200,
-			tip.col = tip_colours[[index]],
-			main = labels[[index]])
-		add.scale.bar(x = mean(par("usr")[1:2]),
-			y = par("usr")[3] + 1,
-			font = 1, lwd = 2)
-		drawSupportOnEdges(tree_list[[index]]$node.label,
-			adj = c(0.5, -0.5),
-			frame = "none")
+		if (plot_clado) {
+			plot.phylo(ladderize(tree_list[[index]], right = FALSE),
+				no.margin = FALSE,
+				font = 1,
+				edge.width = 2,
+				label.offset = 0.1,
+				use.edge.length = FALSE,
+				node.depth = 2,
+				tip.col = tip_colours[[index]],
+				main = labels[[index]])
+			if (is.null(tree_list[[index]]$node.label)) {
+				cat("No nade labels detected\n")
+			} else {
+				drawSupportOnEdges(tree_list[[index]]$node.label,
+					adj = c(0.5, -0.5),
+					frame = "none")
+			}
+		} else {
+			plot.phylo(ladderize(tree_list[[index]], right = FALSE),
+				no.margin = FALSE,
+				font = 1,
+				edge.width = 2,
+				label.offset = max(nodeHeights(tree)) / 200,
+				tip.col = tip_colours[[index]],
+				main = labels[[index]])
+			add.scale.bar(x = mean(par("usr")[1:2]),
+				y = par("usr")[3] + 1,
+				font = 1, lwd = 2)
+			if (is.null(tree_list[[index]]$node.label)) {
+				cat("No nade labels detected\n")
+			} else {
+				drawSupportOnEdges(tree_list[[index]]$node.label,
+					adj = c(0.5, -0.5),
+					frame = "none")
+			}
+		}
 		invisible(dev.off())
 	}
 }
