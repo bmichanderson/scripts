@@ -152,7 +152,8 @@ if (outgroup_present) {
 				if (is.monophyletic(tree, as.character(these_outgroups))) {
 					rootnode <- getMRCA(tree, as.character(these_outgroups))
 					if (plot_clado) {
-						rooted_tree <- root(tree, node = rootnode, resolve.root = TRUE)
+						rooted_tree <- root(tree, node = rootnode,
+							resolve.root = TRUE, edgelabel = TRUE)
 					} else {
 						rootnode <- getMRCA(tree, as.character(these_outgroups))
 						position <- 0.5 * tree$edge.length[which(tree$edge[, 2] == rootnode)]
@@ -165,7 +166,8 @@ if (outgroup_present) {
 				}
 			} else {
 				if (plot_clado) {
-					rooted_tree <- root(tree, as.character(these_outgroups), resolve.root = TRUE)
+					rooted_tree <- root(tree, as.character(these_outgroups), resolve.root = TRUE,
+						edgelabel = TRUE)
 				} else {
 					tip_number <- which(tree$tip.label == these_outgroups)
 					rootnode <- tree$edge[tree$edge[, 2] == tip_number, 1]
