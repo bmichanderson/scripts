@@ -5,6 +5,7 @@
 # Modified: April 2023, May 2023, July 2023,
 # Apr 2025 (changed calculations and reporting to be more efficient for many alignments),
 # Feb 2026 (adjusted so distance averaging occurs by chunk to avoid memory issues with very large datasets >10,000 loci)
+# Mar 2026 (add option to input list of files rather than as arguments)
 # Description: convert a DNA alignment (fasta) or multiple alignments into a distance matrix (Nexus format)
 # Note: the resulting distance matrix will be saved as "dist_out.nex"
 ##########
@@ -23,6 +24,7 @@ help <- function(help_message) {
 		cat("Options:\n")
 		cat("\t-m\tThe ape DNA distance model [default \"F84\"]\n")
 		cat("\t-a\tResolve ambiguous bases randomly before calculating distance in ape (\"y\" or \"n\" [default])\n")
+		cat("\t-f\tFile with paths of alignments instead of as arguments; if this is specified, free arguments are ignored\n")
 		cat("\t-p\tThe pofadinr nucleotide distance method (\"g\" for GENPOFAD, \"m\" for MATCHSTATES)\n")
 		cat("\t\tIf set, this will be the method used rather than ape dist.dna\n")
 		cat("\t-s\tA file with tab-separated sample IDs and corresponding tip labels for conversion,",
@@ -45,12 +47,17 @@ if (length(args) == 0) {
 	ambig <- "n"
 	samples_present <- FALSE
 	pofad_method_set <- FALSE
+	list_present <- FALSE
 	for (index in seq_len(length(args))) {
 		if (args[index] == "-m") {
 			model <- args[index + 1]
 			catch <- FALSE
 		} else if (args[index] == "-a") {
 			ambig <- args[index + 1]
+			catch <- FALSE
+		} else if (args[index] == "-f") {
+			list_present <- TRUE
+			align_list <- args[index + 1]
 			catch <- FALSE
 		} else if (args[index] == "-p") {
 			pofad_method_set <- TRUE
@@ -70,7 +77,10 @@ if (length(args) == 0) {
 		}
 	}
 }
-if (length(catch_args) < 1) {
+
+if (list_present) {
+	cat(paste0("List of alignments provided as ", align_list, "\n"))
+} else if (length(catch_args) < 1) {
 	stop(help("Missing argument for alignment!\n"), call. = FALSE)
 }
 
@@ -81,6 +91,13 @@ if (samples_present) {
 }
 
 alignments <- vector("list")
+if (list_present) {
+	paths <- read.table(align_list)[, 1]
+	for (index in seq_len(length(paths))) {
+		alignment <- read.FASTA(paths[[index]], type = "DNA")
+		alignments[[index]] <- alignment
+	}
+}
 for (index in seq_len(length(catch_args))) {
 	alignment <- read.FASTA(catch_args[[index]], type = "DNA")
 	alignments[[index]] <- alignment
