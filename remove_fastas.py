@@ -3,7 +3,7 @@
 # Author: B. Anderson
 # Date: 28 Jun 2019
 # Updated: Oct 2021 (can now take a text file with strings for string matching, one per line; also cleaned up and added parser)
-# Updated: Jun 2022
+# Updated: Jun 2022; Mar 2026 (added quiet argument; adjusted for improved speed with many files)
 # Description: a script to simply remove entries from multifastas based on string matches (arg1)
 ###############################################
 
@@ -26,6 +26,7 @@ parser.add_argument('strings', type = str, help = 'The comma delimited strings t
 parser.add_argument('-f', type = str, dest = 'string_file', help = 'A text file with a list of strings, ' +
 	'one per line (optional). If not specified, then the first space-delimited command line argument ' +
 	'will be interpreted as the comma-delimited search strings.')
+parser.add_argument('--quiet', '-q', action = 'store_true', help = 'Whether to silence screen reporting [default do not]')
 
 
 # parse the command line
@@ -59,19 +60,34 @@ else:
 
 
 # read in the each multifasta file and remove entries
+# Now updated to instead selectively store rather than remove
+master_list = []
 for multifasta in file_list:
+	filename = os.path.basename(multifasta)
 	fasta_list = []
+	removed = 0
 	fastas = SeqIO.parse(open(multifasta, 'r'), 'fasta')
 	for fasta in fastas:
-		fasta_list.append(fasta)
-	remove_indices = []
-	for i, fasta in enumerate(fasta_list):
+		store = True
 		for string in string_list:
 			if string in fasta.description:
-				remove_indices.append(i)
-	for i in sorted(set(remove_indices), reverse = True):
-		del fasta_list[i]
-	print('Removed ' + str(len(set(remove_indices))) + ' entries from ' + os.path.basename(multifasta))
-	with open('mod_' + os.path.basename(multifasta), 'w') as outfile:
-		for fasta in fasta_list:
+				store = False
+				removed = removed + 1
+				break
+
+		if store:
+			fasta_list.append(fasta)
+
+	if len(fasta_list) > 0:
+		master_list.append([filename, fasta_list])
+		if not args.quiet:
+			print('Removed ' + str(removed) + ' entries from ' + filename)
+
+
+# output the files
+for entry in master_list:
+	with open('mod_' + entry[0], 'w') as outfile:
+		if not args.quiet:
+			print('Writing ' + str(len(entry[1])) + ' entries to new file mod_' + entry[0])
+		for fasta in entry[1]:
 			SeqIO.write(fasta, outfile, 'fasta')
