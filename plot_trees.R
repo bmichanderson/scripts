@@ -28,7 +28,8 @@ help <- function(help_message) {
 		cat("\t-w\tFlag for whether to write the tips in the order plotted, from base of tree up\n")
 		cat("\t\tNote: this only works for rooted trees (with outgroups specified)\n")
 		cat("\t-clado\tFlag for whether to plot as cladograms (no meaning to branch lengths) [default: do not]\n")
-		cat("\t-type\tAlternative type of tree to plot: \"radial\" or \"fan\" [default: use \"phylogram\" or \"unrooted\"]\n")
+		cat("\t-type\tType of tree to plot: \"r{adial}\", \"f{an}\", \"p{hylogram}\" or \"u{nrooted}\" [optional]\n")
+		cat("\t\tNote that \"phylogram\" or \"unrooted\" are default if not specified and depending on outgroup\n\n")
 	} else {
 	cat(help_message)
 	}
@@ -54,8 +55,8 @@ if (length(args) == 0) { # nolint
 	samples_file <- ""
 	write_tips <- FALSE
 	plot_clado <- FALSE
-	alt_type_present <- FALSE
-	alt_type <- ""
+	type_present <- FALSE
+	type <- "phylogram"
 	for (index in seq_len(length(args))) {
 		if (args[index] == "-b") {
 			bootstrap <- as.numeric(args[index + 1])
@@ -81,8 +82,8 @@ if (length(args) == 0) { # nolint
 		} else if (args[index] == "-clado")  {
 			plot_clado <- TRUE
 		} else if (args[index] == "-type")  {
-			alt_type_present <- TRUE
-			alt_type <- args[index + 1]
+			type_present <- TRUE
+			type <- args[index + 1]
 			catch <- FALSE
 		} else {
 			if (catch) {
@@ -247,6 +248,32 @@ if (samples_present) {
 }
 
 
+# Set tree type based on user input
+if (type_present) {
+	if (startsWith(type, "r")) {
+		type <- "radial"
+		label_dir <- "axial"
+	} else if (startsWith(type, "f")) {
+		type <- "fan"
+		label_dir <- "axial"
+	} else if (startsWith(type, "p")) {
+		type <- "phylogram"
+		label_dir <- "horizontal"
+	} else if (startsWith(type, "u")) {
+		type <- "unrooted"
+		label_dir <- "axial"
+	} else {
+		cat("Type not recognised; plotting a phylogram\n")
+	}
+} else if (outgroup_present) {
+	type <- "phylogram"
+	label_dir <- "horizontal"
+} else {
+	type <- "unrooted"
+	label_dir <- "axial"
+}
+
+
 # Plot trees
 max_height <- max(c(max_tips / 5, 12))
 
@@ -257,28 +284,21 @@ for (index in seq_len(length(tree_list))) {
 
 	if (outgroup_present) {		# tree has been rooted
 		plot_tree <- ladderize(tree, right = FALSE)
-		type <- "phylogram"
-		label_dir <- "horizontal"
-		special_scale <- TRUE
 	} else {
 		plot_tree <- tree
-		type <- "unrooted"
-		label_dir <- "axial"
-		special_scale <- FALSE
 	}
 
 	if (plot_clado) {
 		edge_use <- FALSE
 		lab_off <- 0.1
-		special_scale <- FALSE
+		draw_scale <- FALSE
 	} else {
 		edge_use <- TRUE
 		lab_off <- max(nodeHeights(tree)) / 200
+		draw_scale <- TRUE
 	}
 
-	if (alt_type_present) {
-		type <- alt_type
-		label_dir <- "axial"
+	if (type == "fan") {
 		no_margin <- TRUE
 		main_title <- paste0("\n", labels[[index]])
 	} else {
@@ -305,14 +325,14 @@ for (index in seq_len(length(tree_list))) {
 			frame = "none")
 	}
 
-	if (special_scale) {
-		add.scale.bar(x = mean(par("usr")[1:2]),
-			y = par("usr")[3] + 1,
-			font = 1, lwd = 2)
-	} else if (plot_clado) {
-		cat("Not adding scale bar to cladogram\n")
-	} else {
-		add.scale.bar(font = 1, lwd = 2)
+	if (draw_scale) {
+		if ( type == "phylogram" ) {
+			add.scale.bar(x = mean(par("usr")[1:2]),
+				y = par("usr")[3] + 1,
+				font = 1, lwd = 2)
+		} else {
+			add.scale.bar(font = 1, lwd = 2)
+		}
 	}
 
 	if (write_tips && outgroup_present) {
