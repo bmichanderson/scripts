@@ -1,17 +1,16 @@
 ---
 title: "Plot phylogenetic trees for target sequence capture data"
-output: html_document
 ---
 
 This document describes the process of plotting phylogenetic trees for sequence capture output
-The trees need to be in Newick format and should be in the current directory
+The trees need to be in Newick format and should be in the working directory
 
 Results from IQ-TREE and ASTRAL will have multiple node labels (e.g. concordance factors)
 To get the concordance trees into Newick properly, use the script `concord_to_newick.py`
 Similarly, use `astral_parse.py` to separate node labels for ASTRAL (posterior probabilities and quartet support)
 
 The outgroup file (`outgroup.txt`) should have a single tip sample ID per line for the outgroups
-The samples file (`samples.txt`) should have sample IDs and display labels tab-separated, one line per sample
+The samples file (`tree_samples.txt`) should have sample IDs and display labels tab-separated, one line per sample
 ```{r}
 suppressMessages(library(ape))
 suppressMessages(library(phytools))
@@ -23,7 +22,7 @@ astral_q <- "astral_q.tre"
 astral_t <- "astral_poly.tre"
 astral_tc <- "astral_poly_collapsed.tre"
 outgroup_file <- "outgroup.txt"
-samples_file <- "samples.txt"
+samples_file <- "tree_samples.txt"
 ```
 
 # Read in data
@@ -52,33 +51,68 @@ Read in the trees
 ```{r}
 tree_list <- vector("list", 7)
 index <- 1
+
 if (file.exists(concat_tree)) {
 	tree_list[[index]] <- read.tree(concat_tree)
+	concat_present <- TRUE
+	concat_index <- index
 	index <- index + 1
+} else {
+	concat_present <- FALSE
 }
+
 if (file.exists(concat_gcf)) {
 	tree_list[[index]] <- read.tree(concat_gcf)
+	concat_gcf_present <- TRUE
+	concat_gcf_index <- index
 	index <- index + 1
+} else {
+	concat_gcf_present <- FALSE
 }
+
 if (file.exists(concat_scf)) {
 	tree_list[[index]] <- read.tree(concat_scf)
+	concat_scf_present <- TRUE
+	concat_scf_index <- index
 	index <- index + 1
+} else {
+	concat_scf_present <- FALSE
 }
+
 if (file.exists(astral_p)) {
 	tree_list[[index]] <- read.tree(astral_p)
+	astral_p_present <- TRUE
+	astral_p_index <- index
 	index <- index + 1
+} else {
+	astral_p_present <- FALSE
 }
+
 if (file.exists(astral_q)) {
 	tree_list[[index]] <- read.tree(astral_q)
+	astral_q_present <- TRUE
+	astral_q_index <- index
 	index <- index + 1
+} else {
+	astral_q_present <- FALSE
 }
+
 if (file.exists(astral_t)) {
 	tree_list[[index]] <- read.tree(astral_t)
+	astral_t_present <- TRUE
+	astral_t_index <- index
 	index <- index + 1
+} else {
+	astral_t_present <- FALSE
 }
+
 if (file.exists(astral_tc)) {
 	tree_list[[index]] <- read.tree(astral_tc)
+	astral_tc_present <- TRUE
+	astral_tc_index <- index
 	index <- index + 1
+} else {
+   astral_tc_present <- FALSE
 }
 ```
 
@@ -87,11 +121,27 @@ If there is an outgroup, root the trees
 if (outgroup_present) {
 	for (index in seq_len(length(tree_list))) {
 		tree <- tree_list[[index]]
-		these_outgroups <- outgroups[outgroups %in% tree$tip.label]
-		rootnode <- getMRCA(tree, as.character(these_outgroups))
-		position <- 0.5 * tree$edge.length[which(tree$edge[, 2] == rootnode)]
-		rooted_tree <- reroot(tree, rootnode, position, edgelabel = TRUE)
-		tree_list[[index]] <- rooted_tree
+		if (sum(outgroups %in% tree$tip.label) > 0) {
+			these_outgroups <- outgroups[outgroups %in% tree$tip.label]
+			if (length(these_outgroups) > 1) {
+				if (is.monophyletic(tree, as.character(these_outgroups))) {
+					rootnode <- getMRCA(tree, as.character(these_outgroups))
+					position <- 0.5 * tree$edge.length[which(tree$edge[, 2] == rootnode)]
+					rooted_tree <- reroot(tree, rootnode, position, edgelabel = TRUE)
+					tree_list[[index]] <- rooted_tree
+				} else {
+					cat("Tree", index, "does not have monophyletic outgroups, so it is not rooted\n")
+				}
+			} else {
+				tip_number <- which(tree$tip.label == these_outgroups)
+				rootnode <- tree$edge[tree$edge[, 2] == tip_number, 1]
+				position <- 0.5 * tree$edge.length[which(tree$edge[, 2] == rootnode)]
+				rooted_tree <- reroot(tree, rootnode, position, edgelabel = TRUE)
+				tree_list[[index]] <- rooted_tree
+			}
+		} else {
+			cat("Tree", index, "has no outgroups, so it is not rooted\n")
+		}
 	}
 }
 ```
@@ -101,8 +151,20 @@ This will output text files per tree, with sample IDs per line (order is from ba
 Based on: https://stackoverflow.com/a/34364914
 ```{r}
 # select names of trees and indices in the list (depending on what files are present)
-tree_names <- c("concat", "astral", "astral_poly")
-indices <- c(1, 4, 7)
+tree_names <- vector("list")
+indices <- vector("list")
+if (concat_present) {
+	tree_names <- append(tree_names, "concat")
+	indices <- append(indices, concat_index)
+}
+if (astral_p_present) {
+	tree_names <- append(tree_names, "astral")
+	indices <- append(indices, astral_p_index)
+}
+if (astral_tc_present) {
+	tree_names <- append(tree_names, "astral_poly")
+	indices <- append(indices, astral_tc_index)
+}
 iter <- 1
 for (index in indices) {
 	lad_tree <- ladderize(tree_list[[index]], right = FALSE)
@@ -112,7 +174,7 @@ for (index in indices) {
 	# get the tips in order of plotting
 	output_ordered_ids <- lad_tree$tip.label[ordered_tips]
 	# write to a file
-	connection <- file(paste0("tips_", tree_names[iter], ".txt"))
+	connection <- file(paste0("tips_", tree_names[[iter]], ".txt"))
 	writeLines(output_ordered_ids, connection)
 	close(connection)
 	iter <- iter + 1
@@ -120,81 +182,80 @@ for (index in indices) {
 ```
 
 # Grab support values
-Capture concordance factors from the files present (set the indices here)
+Capture concordance factors from the files present
 ```{r}
-index_gcf <- 2
-index_scf <- 3
-concord_list <- vector("list", 2)
-
 # gene concordance factors
-tree <- tree_list[[index_gcf]]
-mydf <- data.frame(matrix(ncol = 4, nrow = tree$Nnode))
-index <- 1
-for (label in tree$node.label) {
-	if (any(label == "", label == "Root")) {
-		values <- c("", "", "", "")
-	} else {
-		values <- strsplit(label, split = "\\/")[[1]]
+if (concat_gcf_present) {
+	tree <- tree_list[[concat_gcf_index]]
+	mydf <- data.frame(matrix(ncol = 4, nrow = tree$Nnode))
+	index <- 1
+	for (label in tree$node.label) {
+		if (any(label == "", label == "Root")) {
+			values <- c("", "", "", "")
+		} else {
+			values <- strsplit(label, split = "\\/")[[1]]
+		}
+		mydf[index, 1:4] <- values
+		index <- index + 1
 	}
-	mydf[index, 1:4] <- values
-	index <- index + 1
+	gcf <- as.data.frame(lapply(mydf, as.numeric))
 }
-concord_list[[1]] <- as.data.frame(lapply(mydf, as.numeric))
 
 # site concordance factors
-tree <- tree_list[[index_scf]]
-mydf <- data.frame(matrix(ncol = 3, nrow = tree$Nnode))
-index <- 1
-for (label in tree$node.label) {
-	if (any(label == "", label == "Root")) {
-		values <- c("", "", "")
-	} else {
-		values <- strsplit(label, split = "\\/")[[1]]
+if (concat_scf_present) {
+	tree <- tree_list[[concat_scf_index]]
+	mydf <- data.frame(matrix(ncol = 3, nrow = tree$Nnode))
+	index <- 1
+	for (label in tree$node.label) {
+		if (any(label == "", label == "Root")) {
+			values <- c("", "", "")
+		} else {
+			values <- strsplit(label, split = "\\/")[[1]]
+		}
+		mydf[index, 1:3] <- values
+		index <- index + 1
 	}
-	mydf[index, 1:3] <- values
-	index <- index + 1
+	scf <- as.data.frame(lapply(mydf, as.numeric))
 }
-concord_list[[2]] <- as.data.frame(lapply(mydf, as.numeric))
 ```
 
-Capture ASTRAL posterior probabilities and quartet support (set indices here)
+Capture ASTRAL posterior probabilities and quartet support if present
 ```{r}
-index_astralp <- 4
-index_astralq <- 5
-astral_list <- vector("list", 2)
-
 # posterior probabilities
-tree <- tree_list[[index_astralp]]
-mydf <- data.frame(matrix(ncol = 1, nrow = tree$Nnode))
-index <- 1
-for (label in tree$node.label) {
-	if (any(label == "", label == "Root")) {
-		values <- c("")
-	} else {
-		values <- strsplit(label, split = "\\/")[[1]][1]
+if (astral_p_present) {
+	tree <- tree_list[[astral_p_index]]
+	mydf <- data.frame(matrix(ncol = 1, nrow = tree$Nnode))
+	index <- 1
+	for (label in tree$node.label) {
+		if (any(label == "", label == "Root")) {
+			values <- c("")
+		} else {
+			values <- strsplit(label, split = "\\/")[[1]][1]
+		}
+		mydf[index, ] <- values
+		index <- index + 1
 	}
-	mydf[index, ] <- values
-	index <- index + 1
+	mydf <- as.data.frame(lapply(mydf, as.numeric))
+	pps <- sapply(mydf[, 1], function(x) format(round(x, 2), nsmall = 2))
+	pps[pps == "NA"] <- ""
 }
-mydf <- as.data.frame(lapply(mydf, as.numeric))
-pps <- sapply(mydf[, 1], function(x) format(round(x, 2), nsmall = 2))
-pps[pps == "NA"] <- ""
-astral_list[[1]] <- pps
 
 # quartet support
-tree <- tree_list[[index_astralq]]
-mydf <- data.frame(matrix(ncol = 3, nrow = tree$Nnode))
-index <- 1
-for (label in tree$node.label) {
-	if (any(label == "", label == "Root")) {
-		values <- c("", "", "")
-	} else {
-		values <- strsplit(label, split = "\\/")[[1]]
+if (astral_q_present) {
+	tree <- tree_list[[astral_q_index]]
+	mydf <- data.frame(matrix(ncol = 3, nrow = tree$Nnode))
+	index <- 1
+	for (label in tree$node.label) {
+		if (any(label == "", label == "Root")) {
+			values <- c("", "", "")
+		} else {
+			values <- strsplit(label, split = "\\/")[[1]]
+		}
+		mydf[index, 1:3] <- values
+		index <- index + 1
 	}
-	mydf[index, 1:3] <- values
-	index <- index + 1
+	qs <- as.data.frame(lapply(mydf, as.numeric))
 }
-astral_list[[2]] <- as.data.frame(lapply(mydf, as.numeric))
 ```
 
 # Plot trees
@@ -236,15 +297,39 @@ if (samples_present) {
 }
 ```
 
-## Concatenation  
-Set the name to call the file and trees (replace if needed)
+## Concatenation
+Set the name to call the file and trees (run one of these two)
 ```{r}
-tree_name <- "concatenation_gcf"
-tree_index <- 1
-concord_index <- 1
+if (concat_present) {
+	tree_name <- "concatenation_gcf"
+	tree_index <- concat_index
+	if (concat_gcf_present) {
+		concord <- gcf
+		piecols <- c("white", "#c1c1c1", "#5b5a5a", "black")
+	} else {
+		cat("No concordance present, so don't attempt to plot pie charts below\n")
+	}
+} else {
+	cat("The concatenation tree is needed to plot from this section\n")
+}
+```
+*OR*
+```{r}
+if (concat_present) {
+	tree_name <- "concatenation_scf"
+	tree_index <- concat_index
+	if (concat_scf_present) {
+		concord <- scf
+		piecols <- c("white", "grey", "black")
+	} else {
+		cat("No concordance present, so don't attempt to plot pie charts below\n")
+	}
+} else {
+	cat("The concatenation tree is needed to plot from this section\n")
+}
 ```
 
-Start a graphics device if wanting to output
+Start creating the graphic
 ```{r}
 pdf(paste0(tree_name, ".pdf"), width = my_width, height = my_height, family = "ArialMT")
 # set margins
@@ -266,8 +351,7 @@ add.scale.bar(x = mean(par("usr")[1:2]),
 	font = 1,
 	lwd = 2)
 ```
-
-Or, plot in the reverse orientation
+*OR* plot in the reverse orientation
 ```{r}
 tree <- tree_list[[tree_index]]
 plot.phylo(ladderize(tree, right = FALSE),
@@ -287,37 +371,39 @@ Plot node labels (UFbootstrap) on edges
 ```{r}
 drawSupportOnEdges(tree$node.label, adj = c(0.5, -0.5), frame = "none")
 ```
-Or, plot node labels on nodes
+*OR* plot node labels on nodes
 ```{r}
 nodelabels(tree$node.label, adj = c(-0.05, 0.5), frame = "none")
 ```
 
 Plot concordance as pie charts on nodes
 ```{r}
-concord_df <- concord_list[[concord_index]]
-if (concord_index == 1) {
-	piecols <- c("white", "#c1c1c1", "#5b5a5a", "black")
-} else {
-	piecols <- c("white", "grey", "black")
-}
-nodelabels(pie = concord_df,
-	piecol = piecols,
-	cex = my_cex)
+nodelabels(pie = concord, piecol = piecols,	cex = my_cex)
 ```
 
-Stop creating the graphic
+Stop creating the graphic (can now run again choosing the other concordance if desired)
 ```{r}
 invisible(dev.off())
 ```
 
 ## ASTRAL
-Set the name to call the file and trees (replace if needed)
+Set the name to call the file and trees
 ```{r}
-tree_name <- "astral"
-tree_index <- 4
+if (astral_p_present) {
+	tree_name <- "astral"
+	tree_index <- astral_p_index
+	if (astral_q_present) {
+		concord <- qs
+		piecols <- c("white", "grey", "black")
+	} else {
+		cat("No quartet concordance present, so don't attempt to plot pie charts below\n")
+	}
+} else {
+	cat("The ASTRAL tree is needed to plot from this section\n")
+}
 ```
 
-Start a graphics device if wanting to output
+Start creating the graphic
 ```{r}
 pdf(paste0(tree_name, ".pdf"), width = my_width, height = my_height, family = "ArialMT")
 # set margins
@@ -340,8 +426,7 @@ add.scale.bar(x = mean(par("usr")[1:2]),
 	font = 1,
 	lwd = 2)
 ```
-
-Or plot in the reverse orientation
+*OR* plot in the reverse orientation
 ```{r}
 tree <- tree_list[[tree_index]]
 plot.phylo(ladderize(tree, right = FALSE),
@@ -360,22 +445,16 @@ add.scale.bar(x = mean(par("usr")[1:2]),
 
 Plot node labels (posterior prob) on edges
 ```{r}
-pps <- astral_list[[1]]
 drawSupportOnEdges(pps, adj = c(0.5, -0.5), frame = "none")
 ```
-Or, plot node labels on nodes
+*OR* plot node labels on nodes
 ```{r}
-pps <- astral_list[[1]]
 nodelabels(pps, adj = c(-0.05, 0.5), frame = "none")
 ```
 
 Plot quartet support as pie charts on nodes
 ```{r}
-quart_df <- astral_list[[2]]
-nodelabels(pie = quart_df,
-	piecol = c("white", "grey", "black"),
-	adj = 0.49,
-	cex = my_cex)
+nodelabels(pie = concord, piecol = piecols, adj = 0.49, cex = my_cex)
 ```
 
 Stop creating the graphic
@@ -384,10 +463,23 @@ invisible(dev.off())
 ```
 
 ## ASTRAL_polytomy
-Set the name to call the file and trees (replace if needed, e.g. `astral_poly_collapse` and `7`)
+Set the name to call the file and trees (run one of these two)
 ```{r}
-tree_name <- "astral_poly"
-tree_index <- 6
+if (astral_t_present) {
+	tree_name <- "astral_poly"
+	tree_index <- astral_t_index
+} else {
+	cat("The ASTRAL polytomy tree is needed to plot from this section\n")
+}
+```
+*OR*
+```{r}
+if (astral_tc_present) {
+	tree_name <- "astral_poly_collapse"
+	tree_index <- astral_tc_index
+} else {
+	cat("The ASTRAL polytomy collapsed tree is needed to plot from this section\n")
+}
 ```
 
 Start creating the graphic
