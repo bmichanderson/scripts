@@ -161,7 +161,6 @@ if (outgroup_present) {
 						rooted_tree <- root(tree, node = rootnode,
 							resolve.root = TRUE, edgelabel = TRUE)
 					} else {
-						rootnode <- getMRCA(tree, as.character(these_outgroups))
 						position <- 0.5 * tree$edge.length[which(tree$edge[, 2] == rootnode)]
 						rooted_tree <- reroot(tree, rootnode, position, edgelabel = TRUE)
 					}
@@ -292,10 +291,12 @@ for (index in seq_len(length(tree_list))) {
 		edge_use <- FALSE
 		lab_off <- 0.1
 		draw_scale <- FALSE
+		node_depth <- 2
 	} else {
 		edge_use <- TRUE
 		lab_off <- max(nodeHeights(tree)) / 200
 		draw_scale <- TRUE
+		node_depth <- 1
 	}
 
 	if (type == "fan") {
@@ -311,6 +312,7 @@ for (index in seq_len(length(tree_list))) {
 		no.margin = no_margin,
 		font = 1,
 		use.edge.length = edge_use,
+		node.depth = node_depth,
 		edge.width = 2,
 		label.offset = lab_off,
 		lab4ut = label_dir,
