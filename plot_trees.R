@@ -169,15 +169,14 @@ if (outgroup_present) {
 					cat("Tree", basename(catch_args[[index]]),
 						"does not have monophyletic outgroups, so it is not rooted\n")
 				}
-			} else {
+			} else {		# a single tip is the outgroup
 				if (plot_clado) {
 					rooted_tree <- root(tree, as.character(these_outgroups), resolve.root = TRUE,
 						edgelabel = TRUE)
 				} else {
 					tip_number <- which(tree$tip.label == these_outgroups)
-					rootnode <- tree$edge[tree$edge[, 2] == tip_number, 1]
-					position <- 0.5 * tree$edge.length[which(tree$edge[, 2] == rootnode)]
-					rooted_tree <- reroot(tree, rootnode, position, edgelabel = TRUE)
+					position <- 0.1 * tree$edge.length[which(tree$edge[, 2] == tip_number)]
+					rooted_tree <- reroot(tree, node.number = tip_number, position, edgelabel = TRUE)
 				}
 				tree_list[[index]] <- rooted_tree
 			}
