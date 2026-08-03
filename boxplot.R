@@ -43,7 +43,7 @@ if (multiple) {
 	for (column in seq_len(ncol(mydata))) {
 		pdf(paste0(prefix, "_plot", column, ".pdf"), width = 4, height = 12)
 		boxplot(mydata[, column],
-			ylim = c(0, max(mydata[, column]) * 1.05),
+			ylim = c(0, max(mydata[, column], na.rm = TRUE) * 1.05),
 			main = colnames(mydata)[column])
 		invisible(dev.off())
 	}
@@ -51,7 +51,7 @@ if (multiple) {
 	column <- 1
 	pdf(paste0(prefix, "_plot.pdf"), width = 4, height = 12)
 	boxplot(mydata[, column],
-		ylim = c(0, max(mydata[, column]) * 1.05),
+		ylim = c(0, max(mydata[, column], na.rm = TRUE) * 1.05),
 		main = colnames(mydata)[column])
 	invisible(dev.off())
 }
