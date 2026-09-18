@@ -75,6 +75,8 @@ for node in tree.get_nonterminals():
 				new_name.append(el_parts[1])
 		if len(new_name) > 0:
 			node.name = '/'.join(new_name)
+		elif len(new_name) == 0:		# didn't find it
+			node.name = ''
 
 # write the tree
 Phylo.write(tree, open(out_pre + '_' + out_format + '.tre', 'w'), 'newick')
